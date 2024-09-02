@@ -1,0 +1,63 @@
+{
+  "nodes": {
+    "miscellaneous": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1721853221,
+        "narHash": "sha256-/VyDz9Pi2EDOzcDOkqT6u8WWPKhnjtY6h4Gxha/XVY0=",
+        "owner": "DavidDTA",
+        "repo": "miscellaneous",
+        "rev": "feb470b4d1173478bfd9cc1a9ef7a5af2cd798eb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "DavidDTA",
+        "ref": "master",
+        "repo": "miscellaneous",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1719223410,
+        "narHash": "sha256-jtIo8xR0Zp4SalIwmD+OdCwHF4l7OU6PD63UUK4ckt4=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "efb39c6052f3ce51587cf19733f5f4e5d515aa13",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1725103162,
+        "narHash": "sha256-Ym04C5+qovuQDYL/rKWSR+WESseQBbNAe5DsXNx5trY=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "12228ff1752d7b7624a54e9c1af4b222b3c1073b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "miscellaneous": "miscellaneous",
+        "nixpkgs": "nixpkgs_2"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

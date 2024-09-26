@@ -1,7 +1,7 @@
 {
   description = "";
 
-  inputs.nixpkgs.url = github:NixOS/nixpkgs/nixos-unstable;
+  inputs.nixpkgs.url = github:NixOS/nixpkgs/nixpkgs-unstable;
   inputs.miscellaneous.url = github:DavidDTA/miscellaneous/master;
 
   outputs = { self, nixpkgs, miscellaneous }:

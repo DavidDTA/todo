@@ -1,4 +1,5 @@
-Deno.serve(
-  function handler(_req: Request): Response {
-    return new Response("Hello, world");
+import { serveFile } from "jsr:@std/http/file-server";
+
+Deno.serve(async (req) => {
+    return serveFile(req, "build/frontend/index.html")
 });

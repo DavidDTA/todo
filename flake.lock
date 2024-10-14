@@ -5,11 +5,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1728874340,
-        "narHash": "sha256-QY+jTsTYHfY1vpqUpHLfYZjxX0BBCRF3nZeZ7f4l8+o=",
+        "lastModified": 1728877173,
+        "narHash": "sha256-bQn5Mz4gLxWeKm9i7dEIJK3nlPtaGSPRZa8YM0nTYvw=",
         "owner": "DavidDTA",
         "repo": "miscellaneous",
-        "rev": "54fd671cc106629366e449d6557000ff06111aab",
+        "rev": "7f2c9e88ca142ddf7ab10e362ffada0e8e51c4f3",
         "type": "github"
       },
       "original": {

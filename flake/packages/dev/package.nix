@@ -5,7 +5,8 @@
   '' // {
     server = writeScriptBin "server" ''
       #! ${bash}/bin/bash
+      set -e
       (cd frontend && ${elmPackages.elm}/bin/elm make src/Main.elm --output=../build/frontend/index.html)
-      ${deno}/bin/deno run --allow-net --allow-read backend/src/main.ts
+      ${deno}/bin/deno run --unstable-kv --allow-net --allow-read backend/src/main.ts
     '';
   }

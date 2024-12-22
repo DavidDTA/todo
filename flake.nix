@@ -10,8 +10,19 @@
       callPackage = nixpkgs.legacyPackages.${system}.newScope(miscellaneous.packages.${system} // self.outputs.packages.${system} ) ;
     in
       {
-        packages.${system} = builtins.mapAttrs
-        (dirname: _: callPackage ./flake/packages/${dirname}/package.nix { })
-        (builtins.readDir ./flake/packages);
+        packages.${system} =
+          nixpkgs.lib.concatMapAttrs
+            ( filename: type:
+              if type == "regular" && nixpkgs.lib.hasSuffix ".nix" filename then
+                let
+                  packagename = nixpkgs.lib.removeSuffix ".nix" filename;
+                in
+                  {
+                    ${packagename} = callPackage ./flake/packages/${filename} { };
+                  }
+              else
+                { }
+            )
+            (builtins.readDir ./flake/packages);
       };
 }

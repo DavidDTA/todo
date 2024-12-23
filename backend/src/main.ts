@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
   const route_api_waypoints = new URLPattern({ pathname: "/-/api/waypoints" }).exec(req.url);
   const route_api_waypoints_id = new URLPattern({ pathname: "/-/api/waypoints/:id" }).exec(req.url);
   if (req.method == "GET" && route_home) {
-    return serveFile(req, "build/frontend/index.html");
+    return serveFile(req, "index.html");
   } else if (req.method == "GET" && route_api_waypoints) {
     const kv = await Deno.openKv();
     const waypoints = await getAllWaypoints(kv);

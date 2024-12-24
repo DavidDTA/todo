@@ -3,6 +3,6 @@
     "frozen": true
   },
   "deploy": {
-    "entrypoint": "main.ts"
+    "entrypoint": "src/main.ts"
   }
 }

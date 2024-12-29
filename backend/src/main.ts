@@ -1,4 +1,5 @@
 import { serveFile } from "jsr:@std/http/file-server";
+import { getAuthentication, setAuthentication } from "./auth.ts"
 
 async function transact(operation) {
   while (!await operation()) {
@@ -20,15 +21,33 @@ async function getAllWaypoints(kv) {
 
 Deno.serve(async (req) => {
   const route_home = new URLPattern({ pathname: "/" }).exec(req.url);
+  const route_api_login = new URLPattern({ pathname: "/-/api/login" }).exec(req.url);
   const route_api_waypoints = new URLPattern({ pathname: "/-/api/waypoints" }).exec(req.url);
   const route_api_waypoints_id = new URLPattern({ pathname: "/-/api/waypoints/:id" }).exec(req.url);
+  const isAuthenticated = getAuthentication(req);
   if (req.method == "GET" && route_home) {
-    return serveFile(req, "index.html");
-  } else if (req.method == "GET" && route_api_waypoints) {
+    if (isAuthenticated) {
+      return serveFile(req, "index-authenticated.html");
+    } else {
+      return serveFile(req, "index-unauthenticated.html");
+    }
+  } else if (req.method == "POST" && route_api_login) {
+    const body = await req.json();
+    if (typeof body.token === "string") {
+      const headers = new Headers();
+      setAuthentication(headers, body.token);
+      return new Response(null, { headers });
+    }
+    return new Response(null, { status: 400 });
+  }
+  if (!isAuthenticated) {
+    return new Response(null, { status: 403 });
+  }
+  if (req.method == "GET" && route_api_waypoints) {
     const kv = await Deno.openKv();
     const waypoints = await getAllWaypoints(kv);
     await kv.close()
-    return new Response(JSON.stringify({"waypoints": waypoints}));
+    return new Response(JSON.stringify({waypoints: waypoints}));
   } else if (req.method == "DELETE" && route_api_waypoints_id) {
     const id = route_api_waypoints_id.pathname.groups.id;
     const kv = await Deno.openKv();
@@ -54,5 +73,5 @@ Deno.serve(async (req) => {
     await kv.close()
     return new Response("");
   }
-  return new Response(null, { "status": 404 });
+  return new Response(null, { status: 404 });
 });

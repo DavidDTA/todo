@@ -7,6 +7,7 @@ import Html.Attributes
 import Http
 import Json.Decode
 import KeyDict
+import Strings
 
 
 type WaypointId
@@ -72,14 +73,14 @@ update msg model =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "Working on it!"
+    { title = Strings.title.main
     , body =
         case model.waypoints of
             Loading ->
                 []
 
             Error ->
-                [ Html.text "error" ]
+                [ Html.text Strings.error ]
 
             Data waypoints ->
                 waypoints

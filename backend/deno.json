@@ -3,6 +3,8 @@
     "frozen": true
   },
   "deploy": {
+    "exclude": [],
+    "include": [],
     "entrypoint": "src/main.ts"
   }
 }

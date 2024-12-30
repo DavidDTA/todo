@@ -2,8 +2,8 @@ module Main exposing (main)
 
 import Browser
 import Dict
-import Html
-import Html.Attributes
+import Html.Styled
+import Html.Styled.Attributes
 import Http
 import Json.Decode
 import KeyDict
@@ -75,32 +75,34 @@ view : Model -> Browser.Document Msg
 view model =
     { title = Strings.title.main
     , body =
-        case model.waypoints of
+        (case model.waypoints of
             Loading ->
                 []
 
             Error ->
-                [ Html.text Strings.error ]
+                [ Html.Styled.text Strings.error ]
 
             Data waypoints ->
                 waypoints
                     |> waypointIdKeyDict .values
                     |> List.map
                         (\{ text, completed } ->
-                            Html.div
+                            Html.Styled.div
                                 []
-                                [ Html.input
-                                    [ Html.Attributes.type_ "checkbox"
-                                    , Html.Attributes.checked completed
-                                    , Html.Attributes.disabled True
+                                [ Html.Styled.input
+                                    [ Html.Styled.Attributes.type_ "checkbox"
+                                    , Html.Styled.Attributes.checked completed
+                                    , Html.Styled.Attributes.disabled True
                                     ]
                                     []
-                                , Html.span
+                                , Html.Styled.span
                                     []
-                                    [ Html.text text
+                                    [ Html.Styled.text text
                                     ]
                                 ]
                         )
+        )
+            |> List.map Html.Styled.toUnstyled
     }
 
 

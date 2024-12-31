@@ -1,6 +1,7 @@
 module Main exposing (main)
 
 import Browser
+import Css
 import Dict
 import Html.Styled
 import Html.Styled.Attributes
@@ -83,24 +84,30 @@ view model =
                 [ Html.Styled.text Strings.error ]
 
             Data waypoints ->
-                waypoints
-                    |> waypointIdKeyDict .values
-                    |> List.map
-                        (\{ text, completed } ->
-                            Html.Styled.div
-                                []
-                                [ Html.Styled.input
-                                    [ Html.Styled.Attributes.type_ "checkbox"
-                                    , Html.Styled.Attributes.checked completed
-                                    , Html.Styled.Attributes.disabled True
+                [ Html.Styled.ul
+                    []
+                    (waypoints
+                        |> waypointIdKeyDict .values
+                        |> List.map
+                            (\{ text, completed } ->
+                                Html.Styled.li
+                                    [ Html.Styled.Attributes.css
+                                        [ Css.listStyleType
+                                            (Css.string
+                                                (if completed then
+                                                    "☑ "
+
+                                                 else
+                                                    "☐ "
+                                                )
+                                            )
+                                        ]
                                     ]
-                                    []
-                                , Html.Styled.span
-                                    []
                                     [ Html.Styled.text text
                                     ]
-                                ]
-                        )
+                            )
+                    )
+                ]
         )
             |> List.map Html.Styled.toUnstyled
     }

@@ -12,6 +12,6 @@
       cp -r backend "''${outdir}/server"
       (cd frontend && ${elmPackages.elm}/bin/elm make src/Login.elm --output=''${outdir}/server/index-unauthenticated.html)
       (cd frontend && ${elmPackages.elm}/bin/elm make src/Main.elm --output=''${outdir}/server/index-authenticated.html)
-      (cd "''${outdir}/server" && TOKEN=password ${deno}/bin/deno run --unstable-kv --allow-net --allow-read --allow-env=TOKEN src/main.ts)
+      (cd "''${outdir}/server" && TOKEN=password ${deno}/bin/deno run --unstable-kv --allow-net --allow-read --allow-env=TOKEN --check src/main.ts)
     '';
   }

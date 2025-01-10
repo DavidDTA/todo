@@ -1,4 +1,5 @@
-import { serveFile } from "jsr:@std/http/file-server";
+import * as z from "@npm/zod";
+import { serveFile } from "@std/http/file-server";
 import { getAuthentication, setAuthentication } from "./auth.ts"
 
 async function transact(operation: () => Promise<boolean>) {
@@ -36,13 +37,15 @@ Deno.serve(async (req) => {
       return serveFile(req, "index-unauthenticated.html");
     }
   } else if (req.method == "POST" && route_api_login) {
-    const body = await req.json();
-    if (typeof body.token === "string") {
-      const headers = new Headers();
-      setAuthentication(headers, body.token);
-      return new Response(null, { headers });
+    const body = z.object({
+      token: z.string()
+    }).safeParse(await req.json());
+    if (!body.success) {
+      return new Response(null, { status: 400 });
     }
-    return new Response(null, { status: 400 });
+    const headers = new Headers();
+    setAuthentication(headers, body.data.token);
+    return new Response(null, { headers });
   }
   if (!isAuthenticated) {
     return new Response(null, { status: 403 });
@@ -60,7 +63,13 @@ Deno.serve(async (req) => {
     return new Response("");
   } else if (req.method == "PATCH" && route_api_waypoints_id) {
     const id = route_api_waypoints_id.pathname.groups.id as string;
-    const body = await req.json();
+    const body = z.object({
+      text: z.string().optional(),
+      completed: z.boolean().optional()
+    }).safeParse(await req.json());
+    if (!body.success) {
+      return new Response(null, { status: 400 });
+    }
     const kv = await Deno.openKv();
     const key = ["waypoints", id]
     await transact(async () => {
@@ -69,11 +78,11 @@ Deno.serve(async (req) => {
         text?: string,
         completed?: boolean
       } = entry.value || {};
-      if ('text' in body) {
-        waypoint.text = String(body.text);
+      if (typeof body.data.text !== "undefined") {
+        waypoint.text = body.data.text;
       }
-      if ('completed' in body) {
-        waypoint.completed = Boolean(body.completed);
+      if (typeof body.data.completed !== "undefined") {
+        waypoint.completed = body.data.completed;
       }
       return (await kv.atomic().check(entry).set(key, waypoint).commit()).ok;
     });

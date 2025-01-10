@@ -6,5 +6,9 @@
     "exclude": [],
     "include": [],
     "entrypoint": "src/main.ts"
+  },
+  "imports": {
+    "@std/http": "jsr:@std/http@^1.0.12",
+    "@npm/zod": "npm:zod@^3.24.1"
   }
 }

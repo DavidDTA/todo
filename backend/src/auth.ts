@@ -1,4 +1,4 @@
-import { getCookies, setCookie } from "jsr:@std/http";
+import { getCookies, setCookie } from "@std/http";
 
 export function getAuthentication(req: Request) {
   return Deno.env.get(TOKEN_KEY_ENV) === getCookies(req.headers)[TOKEN_KEY_COOKIE];

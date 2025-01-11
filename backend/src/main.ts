@@ -1,28 +1,8 @@
 import * as z from "@npm/zod";
 import { serveFile } from "@std/http/file-server";
 import { getAuthentication, setAuthentication } from "./auth.ts"
+import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 
-async function transact(operation: () => Promise<boolean>) {
-  while (!await operation()) {
-  }
-}
-
-async function getAllWaypoints(kv: Deno.Kv) {
-  const waypoints = kv.list<{
-    id: string,
-    text: string,
-    completed: boolean
-  }>({"prefix": ["waypoints"]});
-  const result = [];
-  for await (const waypoint of waypoints) {
-    result.push({
-      id: waypoint.key[1],
-      text: String(waypoint.value.text),
-      completed: Boolean(waypoint.value.completed)
-    });
-  }
-  return result;
-}
 
 Deno.serve(async (req) => {
   const route_home = new URLPattern({ pathname: "/" }).exec(req.url);
@@ -54,11 +34,11 @@ Deno.serve(async (req) => {
     const kv = await Deno.openKv();
     const waypoints = await getAllWaypoints(kv);
     await kv.close()
-    return new Response(JSON.stringify({waypoints: waypoints}));
+    return new Response(JSON.stringify({ waypoints }));
   } else if (req.method == "DELETE" && route_api_waypoints_id) {
     const id = route_api_waypoints_id.pathname.groups.id as string;
     const kv = await Deno.openKv();
-    await kv.delete(["waypoints", id]);
+    await deleteWaypoint(kv, id);
     await kv.close()
     return new Response("");
   } else if (req.method == "PATCH" && route_api_waypoints_id) {
@@ -71,21 +51,7 @@ Deno.serve(async (req) => {
       return new Response(null, { status: 400 });
     }
     const kv = await Deno.openKv();
-    const key = ["waypoints", id]
-    await transact(async () => {
-      const entry = await kv.get(key);
-      const waypoint: {
-        text?: string,
-        completed?: boolean
-      } = entry.value || {};
-      if (typeof body.data.text !== "undefined") {
-        waypoint.text = body.data.text;
-      }
-      if (typeof body.data.completed !== "undefined") {
-        waypoint.completed = body.data.completed;
-      }
-      return (await kv.atomic().check(entry).set(key, waypoint).commit()).ok;
-    });
+    await updateWaypoint(kv, id, body.data);
     await kv.close()
     return new Response("");
   }

@@ -1,3 +1,8 @@
+import * as z from "@npm/zod"
+const kvEntryParser = z.object({
+  text: z.string().catch(""),
+  completed: z.boolean().catch(false)
+});
 
 async function transact(operation: () => Promise<boolean>) {
   while (!await operation()) {
@@ -5,17 +10,14 @@ async function transact(operation: () => Promise<boolean>) {
 }
 
 export async function getAllWaypoints(kv: Deno.Kv) {
-  const waypoints = kv.list<{
-    id: string,
-    text: string,
-    completed: boolean
-  }>({"prefix": ["waypoints"]});
+  const waypoints = kv.list({"prefix": ["waypoints"]});
   const result = [];
-  for await (const waypoint of waypoints) {
+  for await (const entry of waypoints) {
+    const waypoint = kvEntryParser.parse(entry.value);
     result.push({
-      id: waypoint.key[1],
-      text: String(waypoint.value.text),
-      completed: Boolean(waypoint.value.completed)
+      id: entry.key[1],
+      text: waypoint.text,
+      completed: waypoint.completed
     });
   }
   return result;
@@ -35,10 +37,7 @@ export async function updateWaypoint(
   const key = ["waypoints", id]
   await transact(async () => {
     const entry = await kv.get(key);
-    const waypoint: {
-      text?: string,
-      completed?: boolean
-    } = entry.value || {};
+    const waypoint = kvEntryParser.parse(entry.value);
     if (typeof update.text !== "undefined") {
       waypoint.text = update.text;
     }

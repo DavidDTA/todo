@@ -1,7 +1,10 @@
 import * as z from "@npm/zod"
 const kvEntryParser = z.object({
   text: z.string().catch(""),
-  completed: z.boolean().catch(false)
+  completed: z.boolean().catch(false),
+  url: z.string().url().nullable().catch(null),
+  requires: z.string().array().catch([]),
+  requiredBy: z.string().array().catch([])
 });
 
 async function transact(operation: () => Promise<boolean>) {
@@ -17,7 +20,10 @@ export async function getAllWaypoints(kv: Deno.Kv) {
     result.push({
       id: entry.key[1],
       text: waypoint.text,
-      completed: waypoint.completed
+      completed: waypoint.completed,
+      url: waypoint.url,
+      requires: waypoint.requires,
+      requiredBy: waypoint.requiredBy
     });
   }
   return result;
@@ -32,7 +38,10 @@ export async function updateWaypoint(
   id: string,
   update: {
     text?: string,
-    completed?: boolean
+    completed?: boolean,
+    url?: string | null,
+    requires?: string[],
+    requiredBy?: string[]
   }) {
   const key = ["waypoints", id]
   await transact(async () => {
@@ -43,6 +52,15 @@ export async function updateWaypoint(
     }
     if (typeof update.completed !== "undefined") {
       waypoint.completed = update.completed;
+    }
+    if (typeof update.url !== "undefined") {
+      waypoint.url = update.url;
+    }
+    if (typeof update.requires !== "undefined") {
+      waypoint.requires = update.requires;
+    }
+    if (typeof update.requiredBy !== "undefined") {
+      waypoint.requiredBy = update.requiredBy
     }
     return (await kv.atomic().check(entry).set(key, waypoint).commit()).ok;
   });

@@ -18,6 +18,9 @@ type WaypointId
 type alias Waypoint =
     { text : String
     , completed : Bool
+    , url : Maybe String
+    , requires : List WaypointId
+    , requiredBy : List WaypointId
     }
 
 
@@ -122,11 +125,14 @@ decodeWaypoints =
     Json.Decode.field
         "waypoints"
         (Json.Decode.list
-            (Json.Decode.map3
-                (\id text completed -> ( WaypointId id, Waypoint text completed ))
+            (Json.Decode.map6
+                (\id text completed url requires requiredBy -> ( WaypointId id, Waypoint text completed url requires requiredBy ))
                 (Json.Decode.field "id" Json.Decode.string)
                 (Json.Decode.field "text" Json.Decode.string)
                 (Json.Decode.field "completed" Json.Decode.bool)
+                (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
+                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
+                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
             )
             |> Json.Decode.andThen
                 (\list ->

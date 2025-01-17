@@ -3,6 +3,7 @@ module Main exposing (main)
 import Browser
 import Css
 import Dict
+import Graph
 import Html.Styled
 import Html.Styled.Attributes
 import Http
@@ -31,7 +32,11 @@ type RemoteData a
 
 
 type alias Model =
-    { waypoints : RemoteData (KeyDict.KeyDict WaypointId String Waypoint)
+    { waypoints :
+        RemoteData
+            { nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
+            , graph : Graph.Graph (Maybe Waypoint) ()
+            }
     }
 
 
@@ -68,8 +73,65 @@ update msg model =
                         Err _ ->
                             Error
 
-                        Ok value ->
-                            Data value
+                        Ok waypoints ->
+                            let
+                                addIfMissing id dict =
+                                    waypointIdKeyDict .update
+                                        id
+                                        (\current ->
+                                            case current of
+                                                Nothing ->
+                                                    Just (waypointIdKeyDict .size dict)
+
+                                                Just _ ->
+                                                    current
+                                        )
+                                        dict
+
+                                nodeIds =
+                                    waypointIdKeyDict .foldl
+                                        (\k v acc ->
+                                            k
+                                                :: (v.requires ++ v.requiredBy)
+                                                |> List.foldl addIfMissing acc
+                                        )
+                                        (waypointIdKeyDict .empty)
+                                        waypoints
+                            in
+                            { nodeIds = nodeIds
+                            , graph =
+                                Graph.fromNodesAndEdges
+                                    (waypointIdKeyDict .foldl
+                                        (\waypointId nodeId -> (::) { id = nodeId, label = waypointIdKeyDict .get waypointId waypoints })
+                                        []
+                                        nodeIds
+                                    )
+                                    (waypointIdKeyDict .foldl
+                                        (\waypointId waypoint acc ->
+                                            case waypointIdKeyDict .get waypointId nodeIds of
+                                                Nothing ->
+                                                    acc
+
+                                                Just nodeId ->
+                                                    List.filterMap
+                                                        (\requirementWaypointId ->
+                                                            waypointIdKeyDict .get requirementWaypointId nodeIds
+                                                                |> Maybe.map (\requirementNodeId -> { from = nodeId, to = requirementNodeId, label = () })
+                                                        )
+                                                        waypoint.requires
+                                                        ++ List.filterMap
+                                                            (\requiredByWaypointId ->
+                                                                waypointIdKeyDict .get requiredByWaypointId nodeIds
+                                                                    |> Maybe.map (\requiredByNodeId -> { from = requiredByNodeId, to = nodeId, label = () })
+                                                            )
+                                                            waypoint.requiredBy
+                                                        ++ acc
+                                        )
+                                        []
+                                        waypoints
+                                    )
+                            }
+                                |> Data
               }
             , Cmd.none
             )
@@ -89,8 +151,9 @@ view model =
             Data waypoints ->
                 [ Html.Styled.ul
                     []
-                    (waypoints
-                        |> waypointIdKeyDict .values
+                    (waypoints.graph
+                        |> Graph.nodes
+                        |> List.filterMap .label
                         |> List.map
                             (\{ text, completed } ->
                                 Html.Styled.li

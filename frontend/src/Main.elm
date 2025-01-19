@@ -7,8 +7,10 @@ import Graph
 import Html.Styled
 import Html.Styled.Attributes
 import Http
+import IntDict
 import Json.Decode
 import KeyDict
+import List.Extra
 import Strings
 
 
@@ -35,7 +37,19 @@ type alias Model =
     { waypoints :
         RemoteData
             { nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
-            , graph : Graph.Graph (Maybe Waypoint) ()
+            , graph :
+                Result
+                    (List
+                        { id : WaypointId
+                        , value : Maybe Waypoint
+                        }
+                    )
+                    (Graph.AcyclicGraph
+                        { id : WaypointId
+                        , value : Maybe Waypoint
+                        }
+                        ()
+                    )
             }
     }
 
@@ -102,7 +116,7 @@ update msg model =
                             , graph =
                                 Graph.fromNodesAndEdges
                                     (waypointIdKeyDict .foldl
-                                        (\waypointId nodeId -> (::) { id = nodeId, label = waypointIdKeyDict .get waypointId waypoints })
+                                        (\waypointId nodeId -> (::) { id = nodeId, label = { id = waypointId, value = waypointIdKeyDict .get waypointId waypoints } })
                                         []
                                         nodeIds
                                     )
@@ -130,6 +144,10 @@ update msg model =
                                         []
                                         waypoints
                                     )
+                                    |> Graph.stronglyConnectedComponents
+                                    |> Result.mapError
+                                        (List.Extra.findMap extractCycleFromStronglyConnectedComponent)
+                                    |> Result.mapError (Maybe.withDefault [])
                             }
                                 |> Data
               }
@@ -149,39 +167,101 @@ view model =
                 [ Html.Styled.text Strings.error ]
 
             Data waypoints ->
-                [ Html.Styled.ul
-                    []
-                    (waypoints.graph
-                        |> Graph.nodes
-                        |> List.filterMap .label
-                        |> List.map
-                            (\{ text, completed } ->
-                                Html.Styled.li
-                                    [ Html.Styled.Attributes.css
-                                        [ Css.listStyleType
-                                            (Css.string
-                                                (if completed then
-                                                    "☑ "
-
-                                                 else
-                                                    "☐ "
-                                                )
-                                            )
-                                        ]
-                                    ]
-                                    [ Html.Styled.text text
-                                    ]
+                case waypoints.graph of
+                    Err cycle ->
+                        [ Html.Styled.div [] [ Html.Styled.text Strings.cycleDetected ]
+                        , Html.Styled.ul
+                            []
+                            (cycle
+                                |> List.map
+                                    (\{ id, value } ->
+                                        viewWaypointRowPrimitive
+                                            { text =
+                                                value
+                                                    |> Maybe.map .text
+                                                    |> Maybe.withDefault
+                                                        Strings.unknownWaypoint
+                                            , icon = "↳"
+                                            }
+                                    )
                             )
-                    )
-                ]
+                        ]
+
+                    Ok acyclic ->
+                        [ Html.Styled.ul
+                            []
+                            (acyclic
+                                |> Graph.topologicalSort
+                                |> List.reverse
+                                |> List.map .node
+                                |> List.map .label
+                                |> List.map
+                                    (\{ id, value } ->
+                                        case value of
+                                            Just waypoint ->
+                                                viewWaypointRow waypoint
+
+                                            Nothing ->
+                                                viewWaypointRowPrimitive { text = Strings.unknownWaypoint, icon = "⍰" }
+                                    )
+                            )
+                        ]
         )
             |> List.map Html.Styled.toUnstyled
     }
 
 
+viewWaypointRow { text, completed } =
+    viewWaypointRowPrimitive
+        { text = text
+        , icon =
+            if completed then
+                "☑"
+
+            else
+                "☐"
+        }
+
+
+viewWaypointRowPrimitive { text, icon } =
+    Html.Styled.li
+        [ Html.Styled.Attributes.css
+            [ Css.listStyleType
+                (Css.string (icon ++ " "))
+            ]
+        ]
+        [ Html.Styled.text text
+        ]
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
+
+
+extractCycleFromStronglyConnectedComponent graph =
+    Graph.bfs
+        (\path _ acc ->
+            case ( acc, List.head path, List.Extra.last (Maybe.withDefault [] (List.tail path)) ) of
+                ( Just _, _, _ ) ->
+                    acc
+
+                ( _, Just current, Just root ) ->
+                    if IntDict.member root.node.id current.outgoing then
+                        path
+                            |> List.map .node
+                            |> List.map .label
+                            |> List.reverse
+                            |> Just
+
+                    else
+                        Nothing
+
+                _ ->
+                    Nothing
+        )
+        Nothing
+        graph
 
 
 decodeWaypoints =

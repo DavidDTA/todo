@@ -13,3 +13,11 @@ error =
 
 logIn =
     "Log in"
+
+
+unknownWaypoint =
+    "Unknown"
+
+
+cycleDetected =
+    "Cyclical requirement detected"

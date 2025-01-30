@@ -169,46 +169,54 @@ view model =
             Data waypoints ->
                 case waypoints.graph of
                     Err cycle ->
-                        [ Html.Styled.div [] [ Html.Styled.text Strings.cycleDetected ]
-                        , Html.Styled.ul
-                            []
-                            (cycle
-                                |> List.map
-                                    (\{ id, value } ->
-                                        viewWaypointRowPrimitive
-                                            { text =
-                                                value
-                                                    |> Maybe.map .text
-                                                    |> Maybe.withDefault
-                                                        Strings.unknownWaypoint
-                                            , icon = "↳"
-                                            }
-                                    )
-                            )
-                        ]
+                        viewWaypointsCycle cycle
 
                     Ok acyclic ->
-                        [ Html.Styled.ul
-                            []
-                            (acyclic
-                                |> Graph.topologicalSort
-                                |> List.reverse
-                                |> List.map .node
-                                |> List.map .label
-                                |> List.map
-                                    (\{ id, value } ->
-                                        case value of
-                                            Just waypoint ->
-                                                viewWaypointRow waypoint
-
-                                            Nothing ->
-                                                viewWaypointRowPrimitive { text = Strings.unknownWaypoint, icon = "⍰" }
-                                    )
-                            )
-                        ]
+                        viewWaypointsAcyclic acyclic
         )
             |> List.map Html.Styled.toUnstyled
     }
+
+
+viewWaypointsCycle cycle =
+    [ Html.Styled.div [] [ Html.Styled.text Strings.cycleDetected ]
+    , Html.Styled.ul
+        []
+        (cycle
+            |> List.map
+                (\{ id, value } ->
+                    viewWaypointRowPrimitive
+                        { text =
+                            value
+                                |> Maybe.map .text
+                                |> Maybe.withDefault
+                                    Strings.unknownWaypoint
+                        , icon = "↳"
+                        }
+                )
+        )
+    ]
+
+
+viewWaypointsAcyclic acyclic =
+    [ Html.Styled.ul
+        []
+        (acyclic
+            |> Graph.topologicalSort
+            |> List.reverse
+            |> List.map .node
+            |> List.map .label
+            |> List.map
+                (\{ id, value } ->
+                    case value of
+                        Just waypoint ->
+                            viewWaypointRow waypoint
+
+                        Nothing ->
+                            viewWaypointRowPrimitive { text = Strings.unknownWaypoint, icon = "⍰" }
+                )
+        )
+    ]
 
 
 viewWaypointRow { text, completed } =

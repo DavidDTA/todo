@@ -17,9 +17,12 @@ Deno.serve(async (req) => {
       return serveFile(req, "index-unauthenticated.html");
     }
   } else if (req.method == "POST" && route_api_login) {
-    const body = z.object({
-      token: z.string()
-    }).safeParse(await req.json());
+    const body =
+      z.object({
+        token: z.string()
+      })
+        .strict()
+        .safeParse(await req.json());
     if (!body.success) {
       return new Response(null, { status: 400 });
     }
@@ -43,13 +46,16 @@ Deno.serve(async (req) => {
     return new Response("");
   } else if (req.method == "PATCH" && route_api_waypoints_id) {
     const id = route_api_waypoints_id.pathname.groups.id as string;
-    const body = z.object({
-      text: z.string().optional(),
-      completed: z.boolean().optional(),
-      url: z.string().url().nullable().optional(),
-      requires: z.string().array().optional(),
-      requiredBy: z.string().array().optional()
-    }).safeParse(await req.json());
+    const body =
+      z.object({
+        text: z.string().optional(),
+        completed: z.boolean().optional(),
+        url: z.string().url().nullable().optional(),
+        requires: z.string().array().optional(),
+        requiredBy: z.string().array().optional()
+      })
+        .strict()
+        .safeParse(await req.json());
     if (!body.success) {
       return new Response(null, { status: 400 });
     }

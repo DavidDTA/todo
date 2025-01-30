@@ -1,11 +1,15 @@
 import * as z from "@npm/zod"
-const kvEntryParser = z.object({
-  text: z.string().catch(""),
-  completed: z.boolean().catch(false),
-  url: z.string().url().nullable().catch(null),
-  requires: z.string().array().catch([]),
-  requiredBy: z.string().array().catch([])
-});
+const kvEntryParser =
+  z.preprocess(
+    (it: any) => it === null ? {} : it,
+    z.object({
+      text: z.string().catch(""),
+      completed: z.boolean().catch(false),
+      url: z.string().url().nullable().catch(null),
+      requires: z.string().array().catch([]),
+      requiredBy: z.string().array().catch([])
+    }),
+  );
 
 async function transact(operation: () => Promise<boolean>) {
   while (!await operation()) {

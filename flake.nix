@@ -6,23 +6,27 @@
 
   outputs = { self, nixpkgs, miscellaneous }:
     let
-      system = "x86_64-linux";
-      callPackage = nixpkgs.legacyPackages.${system}.newScope(miscellaneous.packages.${system} // self.outputs.packages.${system} ) ;
+      systems = ["x86_64-linux" "aarch64-linux"];
     in
       {
-        packages.${system} =
-          nixpkgs.lib.concatMapAttrs
-            ( filename: type:
-              if type == "regular" && nixpkgs.lib.hasSuffix ".nix" filename then
-                let
-                  packagename = nixpkgs.lib.removeSuffix ".nix" filename;
-                in
-                  {
-                    ${packagename} = callPackage ./flake/packages/${filename} { };
-                  }
-              else
-                { }
-            )
-            (builtins.readDir ./flake/packages);
+        packages =
+          nixpkgs.lib.attrsets.genAttrs systems (system:
+            let
+              callPackage = nixpkgs.legacyPackages.${system}.newScope(miscellaneous.packages.${system} // self.outputs.packages.${system} ) ;
+            in
+              nixpkgs.lib.concatMapAttrs
+                ( filename: type:
+                  if type == "regular" && nixpkgs.lib.hasSuffix ".nix" filename then
+                    let
+                      packagename = nixpkgs.lib.removeSuffix ".nix" filename;
+                    in
+                      {
+                        ${packagename} = callPackage ./flake/packages/${filename} { };
+                      }
+                  else
+                    { }
+                )
+                (builtins.readDir ./flake/packages)
+          );
       };
 }

@@ -4,6 +4,7 @@ import Browser
 import Css
 import Dict
 import Graph
+import Html.Events.Extra.Pointer
 import Html.Styled
 import Html.Styled.Attributes
 import Http
@@ -11,6 +12,7 @@ import IntDict
 import Json.Decode
 import KeyDict
 import List.Extra
+import Maybe.Extra
 import Strings
 
 
@@ -34,7 +36,8 @@ type RemoteData a
 
 
 type alias Model =
-    { waypoints :
+    { selected : Maybe WaypointId
+    , waypoints :
         RemoteData
             { nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
             , graph :
@@ -44,18 +47,26 @@ type alias Model =
                         , value : Maybe Waypoint
                         }
                     )
-                    (Graph.AcyclicGraph
-                        { id : WaypointId
-                        , value : Maybe Waypoint
-                        }
-                        ()
-                    )
+                    { graph :
+                        Graph.Graph
+                            { id : WaypointId
+                            , value : Maybe Waypoint
+                            }
+                            ()
+                    , acyclic :
+                        Graph.AcyclicGraph
+                            { id : WaypointId
+                            , value : Maybe Waypoint
+                            }
+                            ()
+                    }
             }
     }
 
 
 type Msg
     = InitWaypoints (Result Http.Error (KeyDict.KeyDict WaypointId String Waypoint))
+    | Select (Maybe WaypointId)
 
 
 main =
@@ -69,7 +80,9 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init flags =
-    ( { waypoints = Loading }
+    ( { selected = Nothing
+      , waypoints = Loading
+      }
     , Http.get
         { url = "/-/api/waypoints"
         , expect = Http.expectJson InitWaypoints decodeWaypoints
@@ -144,15 +157,37 @@ update msg model =
                                         []
                                         waypoints
                                     )
-                                    |> Graph.stronglyConnectedComponents
-                                    |> Result.mapError
-                                        (List.Extra.findMap extractCycleFromStronglyConnectedComponent)
-                                    |> Result.mapError (Maybe.withDefault [])
+                                    |> (\graph ->
+                                            graph
+                                                |> Graph.stronglyConnectedComponents
+                                                |> Result.mapError
+                                                    (List.Extra.findMap extractCycleFromStronglyConnectedComponent)
+                                                |> Result.mapError (Maybe.withDefault [])
+                                                |> Result.map
+                                                    (\acyclic ->
+                                                        { graph = graph
+                                                        , acyclic = acyclic
+                                                        }
+                                                    )
+                                       )
                             }
                                 |> Data
               }
             , Cmd.none
             )
+
+        Select selection ->
+            ( { model
+                | selected = selection
+              }
+            , Cmd.none
+            )
+
+
+type WaypointRowHighlight
+    = NoHighlight
+    | Selected
+    | DescendantOrAncestor
 
 
 view : Model -> Browser.Document Msg
@@ -172,7 +207,7 @@ view model =
                         viewWaypointsCycle cycle
 
                     Ok acyclic ->
-                        viewWaypointsAcyclic acyclic
+                        viewWaypointsAcyclic model.selected acyclic
         )
             |> List.map Html.Styled.toUnstyled
     }
@@ -192,13 +227,40 @@ viewWaypointsCycle cycle =
                                 |> Maybe.withDefault
                                     Strings.unknownWaypoint
                         , icon = "↳"
+                        , id = id
+                        , highlight = NoHighlight
                         }
                 )
         )
     ]
 
 
-viewWaypointsAcyclic acyclic =
+viewWaypointsAcyclic selected { graph, acyclic } =
+    let
+        seeds =
+            graph
+                |> Graph.nodes
+                |> List.filter (\{ label } -> Just label.id == selected)
+                |> List.map .id
+
+        transitiveRequires =
+            Graph.guidedDfs
+                Graph.alongOutgoingEdges
+                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label.id ()))
+                seeds
+                (waypointIdKeyDict .empty)
+                graph
+                |> Tuple.first
+
+        transitiveRequiredBy =
+            Graph.guidedDfs
+                Graph.alongIncomingEdges
+                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label.id ()))
+                seeds
+                (waypointIdKeyDict .empty)
+                graph
+                |> Tuple.first
+    in
     [ Html.Styled.ul
         []
         (acyclic
@@ -208,18 +270,39 @@ viewWaypointsAcyclic acyclic =
             |> List.map .label
             |> List.map
                 (\{ id, value } ->
+                    let
+                        highlight =
+                            if Just id == selected then
+                                Selected
+
+                            else if waypointIdKeyDict .member id transitiveRequires || waypointIdKeyDict .member id transitiveRequiredBy then
+                                DescendantOrAncestor
+
+                            else
+                                NoHighlight
+                    in
                     case value of
                         Just waypoint ->
-                            viewWaypointRow waypoint
+                            viewWaypointRow
+                                { text = waypoint.text
+                                , completed = waypoint.completed
+                                , highlight = highlight
+                                , id = id
+                                }
 
                         Nothing ->
-                            viewWaypointRowPrimitive { text = Strings.unknownWaypoint, icon = "⍰" }
+                            viewWaypointRowPrimitive
+                                { text = Strings.unknownWaypoint
+                                , icon = "⍰"
+                                , id = id
+                                , highlight = highlight
+                                }
                 )
         )
     ]
 
 
-viewWaypointRow { text, completed } =
+viewWaypointRow { completed, highlight, id, text } =
     viewWaypointRowPrimitive
         { text = text
         , icon =
@@ -228,15 +311,32 @@ viewWaypointRow { text, completed } =
 
             else
                 "☐"
+        , id = id
+        , highlight = highlight
         }
 
 
-viewWaypointRowPrimitive { text, icon } =
+viewWaypointRowPrimitive { highlight, icon, id, text } =
     Html.Styled.li
         [ Html.Styled.Attributes.css
             [ Css.listStyleType
                 (Css.string (icon ++ " "))
+            , Css.backgroundColor
+                (case highlight of
+                    NoHighlight ->
+                        Css.unset
+
+                    Selected ->
+                        Css.rgb 255 255 128
+
+                    DescendantOrAncestor ->
+                        Css.rgb 160 160 255
+                )
             ]
+        , Html.Events.Extra.Pointer.onEnter (always (Select (Just id)))
+            |> Html.Styled.Attributes.fromUnstyled
+        , Html.Events.Extra.Pointer.onLeave (always (Select Nothing))
+            |> Html.Styled.Attributes.fromUnstyled
         ]
         [ Html.Styled.text text
         ]

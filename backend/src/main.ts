@@ -5,10 +5,14 @@ import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 
 
 Deno.serve(async (req) => {
-  const route_home = new URLPattern({ pathname: "/" }).exec(req.url);
-  const route_api_login = new URLPattern({ pathname: "/-/api/login" }).exec(req.url);
-  const route_api_waypoints = new URLPattern({ pathname: "/-/api/waypoints" }).exec(req.url);
-  const route_api_waypoints_id = new URLPattern({ pathname: "/-/api/waypoints/:id" }).exec(req.url);
+  const route_home =
+    new URLPattern({ pathname: "/" }).exec(req.url);
+  const route_api_login =
+    new URLPattern({ pathname: "/-/api/login" }).exec(req.url);
+  const route_api_waypoints =
+    new URLPattern({ pathname: "/-/api/waypoints" }).exec(req.url);
+  const route_api_waypoints_id =
+    new URLPattern({ pathname: "/-/api/waypoints/:id" }).exec(req.url);
   const isAuthenticated = getAuthentication(req);
   if (req.method == "GET" && route_home) {
     if (isAuthenticated) {

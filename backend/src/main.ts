@@ -3,16 +3,23 @@ import { serveFile } from "@std/http/file-server";
 import { getAuthentication, setAuthentication } from "./auth.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 
+function makeMatchRoute(url: string) {
+  return function(pattern: string) {
+    return new URLPattern({ pathname: pattern }).exec(url);
+  };
+}
+
 
 Deno.serve(async (req) => {
+  const matchRoute = makeMatchRoute(req.url);
   const route_home =
-    new URLPattern({ pathname: "/" }).exec(req.url);
+    matchRoute("/");
   const route_api_login =
-    new URLPattern({ pathname: "/-/api/login" }).exec(req.url);
+    matchRoute("/-/api/login");
   const route_api_waypoints =
-    new URLPattern({ pathname: "/-/api/waypoints" }).exec(req.url);
+    matchRoute("/-/api/waypoints");
   const route_api_waypoints_id =
-    new URLPattern({ pathname: "/-/api/waypoints/:id" }).exec(req.url);
+    matchRoute("/-/api/waypoints/:id");
   const isAuthenticated = getAuthentication(req);
   if (req.method == "GET" && route_home) {
     if (isAuthenticated) {

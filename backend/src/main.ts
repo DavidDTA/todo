@@ -4,8 +4,22 @@ import { getAuthentication, setAuthentication } from "./auth.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 
 function makeMatchRoute(url: string) {
-  return function(pattern: string) {
-    return new URLPattern({ pathname: pattern }).exec(url);
+  return function<T extends {[index:string]: string} = {}>(pattern: string) {
+    const matched = new URLPattern({ pathname: pattern }).exec(url);
+    if (!matched) {
+      return null;
+    }
+    const parsed =
+      z.object({
+        pathname: z.object({
+          groups: z.object({}).catchall(z.string().transform(decodeURIComponent))
+        })
+      })
+        .safeParse(matched);
+    if (!parsed.success) {
+      return null;
+    }
+    return parsed.data.pathname.groups as T;
   };
 }
 
@@ -19,7 +33,7 @@ Deno.serve(async (req) => {
   const route_api_waypoints =
     matchRoute("/-/api/waypoints");
   const route_api_waypoints_id =
-    matchRoute("/-/api/waypoints/:id");
+    matchRoute<{ id: string }>("/-/api/waypoints/:id");
   const isAuthenticated = getAuthentication(req);
   if (req.method == "GET" && route_home) {
     if (isAuthenticated) {
@@ -50,13 +64,11 @@ Deno.serve(async (req) => {
     await kv.close()
     return new Response(JSON.stringify({ waypoints }));
   } else if (req.method == "DELETE" && route_api_waypoints_id) {
-    const id = route_api_waypoints_id.pathname.groups.id as string;
     const kv = await Deno.openKv();
-    await deleteWaypoint(kv, id);
+    await deleteWaypoint(kv, route_api_waypoints_id.id);
     await kv.close()
     return new Response("");
   } else if (req.method == "PATCH" && route_api_waypoints_id) {
-    const id = route_api_waypoints_id.pathname.groups.id as string;
     const body =
       z.object({
         text: z.string().optional(),
@@ -71,7 +83,7 @@ Deno.serve(async (req) => {
       return new Response(null, { status: 400 });
     }
     const kv = await Deno.openKv();
-    await updateWaypoint(kv, id, body.data);
+    await updateWaypoint(kv, route_api_waypoints_id.id, body.data);
     await kv.close()
     return new Response("");
   }

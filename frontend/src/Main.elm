@@ -229,6 +229,9 @@ viewWaypointsCycle cycle =
                         , icon = "↳"
                         , id = id
                         , highlight = NoHighlight
+                        , url =
+                            value
+                                |> Maybe.andThen .url
                         }
                 )
         )
@@ -288,6 +291,7 @@ viewWaypointsAcyclic selected { graph, acyclic } =
                                 , completed = waypoint.completed
                                 , highlight = highlight
                                 , id = id
+                                , url = waypoint.url
                                 }
 
                         Nothing ->
@@ -296,13 +300,14 @@ viewWaypointsAcyclic selected { graph, acyclic } =
                                 , icon = "⍰"
                                 , id = id
                                 , highlight = highlight
+                                , url = Nothing
                                 }
                 )
         )
     ]
 
 
-viewWaypointRow { completed, highlight, id, text } =
+viewWaypointRow { completed, highlight, id, text, url } =
     viewWaypointRowPrimitive
         { text = text
         , icon =
@@ -313,10 +318,11 @@ viewWaypointRow { completed, highlight, id, text } =
                 "☐"
         , id = id
         , highlight = highlight
+        , url = url
         }
 
 
-viewWaypointRowPrimitive { highlight, icon, id, text } =
+viewWaypointRowPrimitive { highlight, icon, id, text, url } =
     Html.Styled.li
         [ Html.Styled.Attributes.css
             [ Css.listStyleType
@@ -338,8 +344,22 @@ viewWaypointRowPrimitive { highlight, icon, id, text } =
         , Html.Events.Extra.Pointer.onLeave (always (Select Nothing))
             |> Html.Styled.Attributes.fromUnstyled
         ]
-        [ Html.Styled.text text
-        ]
+        ([ Html.Styled.text text
+         ]
+            ++ (case url of
+                    Nothing ->
+                        []
+
+                    Just justUrl ->
+                        [ Html.Styled.text " "
+                        , Html.Styled.a
+                            [ Html.Styled.Attributes.href justUrl
+                            ]
+                            [ Html.Styled.text "🔗"
+                            ]
+                        ]
+               )
+        )
 
 
 subscriptions : Model -> Sub Msg

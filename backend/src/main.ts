@@ -1,6 +1,7 @@
 import * as z from "@npm/zod";
 import { serveFile } from "@std/http/file-server";
 import { getAuthentication, setAuthentication } from "./auth.ts"
+import { getPriorities, updatePriorities } from "./priorities.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 
 function makeMatchRoute(url: string) {
@@ -30,6 +31,8 @@ Deno.serve(async (req) => {
     matchRoute("/");
   const route_api_login =
     matchRoute("/-/api/login");
+  const route_api_priorities =
+    matchRoute("/-/api/priorities");
   const route_api_waypoints =
     matchRoute("/-/api/waypoints");
   const route_api_waypoints_id =
@@ -58,7 +61,26 @@ Deno.serve(async (req) => {
   if (!isAuthenticated) {
     return new Response(null, { status: 403 });
   }
-  if (req.method == "GET" && route_api_waypoints) {
+  if (req.method == "GET" && route_api_priorities) {
+    const kv = await Deno.openKv();
+    const priorities = await getPriorities(kv);
+    await kv.close()
+    return new Response(JSON.stringify(priorities));
+  } else if (req.method == "PATCH" && route_api_priorities) {
+    const body =
+      z.object({
+        priorities: z.string().array().optional()
+      })
+        .strict()
+        .safeParse(await req.json());
+    if (!body.success) {
+      return new Response(null, { status: 400 });
+    }
+    const kv = await Deno.openKv();
+    await updatePriorities(kv, body.data);
+    await kv.close()
+    return new Response("");
+  } else if (req.method == "GET" && route_api_waypoints) {
     const kv = await Deno.openKv();
     const waypoints = await getAllWaypoints(kv);
     await kv.close()

@@ -1,4 +1,6 @@
 import * as z from "@npm/zod"
+import { transact } from "./transact.ts"
+
 const kvEntryParser =
   z.preprocess(
     (it: any) => it === null ? {} : it,
@@ -10,11 +12,6 @@ const kvEntryParser =
       requiredBy: z.string().array().catch([])
     }),
   );
-
-async function transact(operation: () => Promise<boolean>) {
-  while (!await operation()) {
-  }
-}
 
 export async function getAllWaypoints(kv: Deno.Kv) {
   const waypoints = kv.list({"prefix": ["waypoints"]});

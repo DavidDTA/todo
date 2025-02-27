@@ -37,6 +37,7 @@ type RemoteData a
 
 type alias Model =
     { selected : Maybe WaypointId
+    , priorities : RemoteData (List WaypointId)
     , waypoints :
         RemoteData
             { nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
@@ -66,6 +67,7 @@ type alias Model =
 
 type Msg
     = InitWaypoints (Result Http.Error (KeyDict.KeyDict WaypointId String Waypoint))
+    | InitPriorities (Result Http.Error (List WaypointId))
     | Select (Maybe WaypointId)
 
 
@@ -81,18 +83,38 @@ main =
 init : () -> ( Model, Cmd Msg )
 init flags =
     ( { selected = Nothing
+      , priorities = Loading
       , waypoints = Loading
       }
-    , Http.get
-        { url = "/-/api/waypoints"
-        , expect = Http.expectJson InitWaypoints decodeWaypoints
-        }
+    , Cmd.batch
+        [ Http.get
+            { url = "/-/api/waypoints"
+            , expect = Http.expectJson InitWaypoints decodeWaypoints
+            }
+        , Http.get
+            { url = "/-/api/priorities"
+            , expect = Http.expectJson InitPriorities decodePriorities
+            }
+        ]
     )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        InitPriorities result ->
+            ( { model
+                | priorities =
+                    case result of
+                        Err _ ->
+                            Error
+
+                        Ok priorities ->
+                            Data priorities
+              }
+            , Cmd.none
+            )
+
         InitWaypoints result ->
             ( { model
                 | waypoints =
@@ -194,20 +216,23 @@ view : Model -> Browser.Document Msg
 view model =
     { title = Strings.title.main
     , body =
-        (case model.waypoints of
-            Loading ->
-                []
-
-            Error ->
-                [ Html.Styled.text Strings.error ]
-
-            Data waypoints ->
+        (case ( model.priorities, model.waypoints ) of
+            ( Data priorities, Data waypoints ) ->
                 case waypoints.graph of
                     Err cycle ->
                         viewWaypointsCycle cycle
 
                     Ok acyclic ->
-                        viewWaypointsAcyclic model.selected acyclic
+                        viewWaypointsAcyclic model.selected priorities acyclic
+
+            ( Error, _ ) ->
+                [ Html.Styled.text Strings.error ]
+
+            ( _, Error ) ->
+                [ Html.Styled.text Strings.error ]
+
+            _ ->
+                []
         )
             |> List.map Html.Styled.toUnstyled
     }
@@ -238,7 +263,7 @@ viewWaypointsCycle cycle =
     ]
 
 
-viewWaypointsAcyclic selected { graph, acyclic } =
+viewWaypointsAcyclic selected priorities { graph, acyclic } =
     let
         seeds =
             graph
@@ -418,6 +443,10 @@ decodeWaypoints =
                         Json.Decode.fail "Duplicate id"
                 )
         )
+
+
+decodePriorities =
+    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string))
 
 
 waypointIdKeyDict =

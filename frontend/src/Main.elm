@@ -320,7 +320,7 @@ viewWaypointsAcyclic selected priorities graph acyclic waypoints =
                         Nothing ->
                             viewWaypointRowPrimitive
                                 { text = Strings.unknownWaypoint
-                                , icon = "⍰"
+                                , icon = "﹖"
                                 , id = id
                                 , highlight = highlight
                                 , url = Nothing

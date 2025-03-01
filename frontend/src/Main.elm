@@ -29,39 +29,27 @@ type alias Waypoint =
     }
 
 
-type RemoteData a
+type RemoteData
     = Loading
+        { priorities : Maybe (List WaypointId)
+        , waypoints : Maybe (KeyDict.KeyDict WaypointId String Waypoint)
+        }
     | Error
-    | Data a
+    | Data
+        { priorities : List WaypointId
+        , nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
+        , waypoints : KeyDict.KeyDict WaypointId String Waypoint
+        , graph : Graph.Graph WaypointId ()
+        , acyclic :
+            Result
+                (List WaypointId)
+                (Graph.AcyclicGraph WaypointId ())
+        }
 
 
 type alias Model =
     { selected : Maybe WaypointId
-    , priorities : RemoteData (List WaypointId)
-    , waypoints :
-        RemoteData
-            { nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
-            , graph :
-                Result
-                    (List
-                        { id : WaypointId
-                        , value : Maybe Waypoint
-                        }
-                    )
-                    { graph :
-                        Graph.Graph
-                            { id : WaypointId
-                            , value : Maybe Waypoint
-                            }
-                            ()
-                    , acyclic :
-                        Graph.AcyclicGraph
-                            { id : WaypointId
-                            , value : Maybe Waypoint
-                            }
-                            ()
-                    }
-            }
+    , data : RemoteData
     }
 
 
@@ -83,8 +71,7 @@ main =
 init : () -> ( Model, Cmd Msg )
 init flags =
     ( { selected = Nothing
-      , priorities = Loading
-      , waypoints = Loading
+      , data = Loading { priorities = Nothing, waypoints = Nothing }
       }
     , Cmd.batch
         [ Http.get
@@ -104,96 +91,22 @@ update msg model =
     case msg of
         InitPriorities result ->
             ( { model
-                | priorities =
-                    case result of
-                        Err _ ->
-                            Error
-
-                        Ok priorities ->
-                            Data priorities
+                | data =
+                    initData
+                        (\value loading -> { loading | priorities = value })
+                        result
+                        model.data
               }
             , Cmd.none
             )
 
         InitWaypoints result ->
             ( { model
-                | waypoints =
-                    case result of
-                        Err _ ->
-                            Error
-
-                        Ok waypoints ->
-                            let
-                                addIfMissing id dict =
-                                    waypointIdKeyDict .update
-                                        id
-                                        (\current ->
-                                            case current of
-                                                Nothing ->
-                                                    Just (waypointIdKeyDict .size dict)
-
-                                                Just _ ->
-                                                    current
-                                        )
-                                        dict
-
-                                nodeIds =
-                                    waypointIdKeyDict .foldl
-                                        (\k v acc ->
-                                            k
-                                                :: (v.requires ++ v.requiredBy)
-                                                |> List.foldl addIfMissing acc
-                                        )
-                                        (waypointIdKeyDict .empty)
-                                        waypoints
-                            in
-                            { nodeIds = nodeIds
-                            , graph =
-                                Graph.fromNodesAndEdges
-                                    (waypointIdKeyDict .foldl
-                                        (\waypointId nodeId -> (::) { id = nodeId, label = { id = waypointId, value = waypointIdKeyDict .get waypointId waypoints } })
-                                        []
-                                        nodeIds
-                                    )
-                                    (waypointIdKeyDict .foldl
-                                        (\waypointId waypoint acc ->
-                                            case waypointIdKeyDict .get waypointId nodeIds of
-                                                Nothing ->
-                                                    acc
-
-                                                Just nodeId ->
-                                                    List.filterMap
-                                                        (\requirementWaypointId ->
-                                                            waypointIdKeyDict .get requirementWaypointId nodeIds
-                                                                |> Maybe.map (\requirementNodeId -> { from = nodeId, to = requirementNodeId, label = () })
-                                                        )
-                                                        waypoint.requires
-                                                        ++ List.filterMap
-                                                            (\requiredByWaypointId ->
-                                                                waypointIdKeyDict .get requiredByWaypointId nodeIds
-                                                                    |> Maybe.map (\requiredByNodeId -> { from = requiredByNodeId, to = nodeId, label = () })
-                                                            )
-                                                            waypoint.requiredBy
-                                                        ++ acc
-                                        )
-                                        []
-                                        waypoints
-                                    )
-                                    |> (\graph ->
-                                            graph
-                                                |> Graph.stronglyConnectedComponents
-                                                |> Result.mapError
-                                                    (List.Extra.findMap extractCycleFromStronglyConnectedComponent)
-                                                |> Result.mapError (Maybe.withDefault [])
-                                                |> Result.map
-                                                    (\acyclic ->
-                                                        { graph = graph
-                                                        , acyclic = acyclic
-                                                        }
-                                                    )
-                                       )
-                            }
-                                |> Data
+                | data =
+                    initData
+                        (\value loading -> { loading | waypoints = value })
+                        result
+                        model.data
               }
             , Cmd.none
             )
@@ -206,6 +119,90 @@ update msg model =
             )
 
 
+initData updateLoading result data =
+    case ( data, result ) of
+        ( Loading loading, Ok value ) ->
+            if updateLoading Nothing loading == loading then
+                loading
+                    |> updateLoading (Just value)
+                    |> resolveData
+
+            else
+                Error
+
+        _ ->
+            Error
+
+
+resolveData loading =
+    case ( loading.priorities, loading.waypoints ) of
+        ( Just priorities, Just waypoints ) ->
+            let
+                addIfMissing id dict =
+                    waypointIdKeyDict .update
+                        id
+                        (\current ->
+                            case current of
+                                Nothing ->
+                                    Just (waypointIdKeyDict .size dict)
+
+                                Just _ ->
+                                    current
+                        )
+                        dict
+
+                nodeIds =
+                    List.foldl
+                        addIfMissing
+                        (waypointIdKeyDict .empty)
+                        (priorities
+                            ++ waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints
+                        )
+
+                graph =
+                    Graph.fromNodesAndEdges
+                        (waypointIdKeyDict .foldl
+                            (\waypointId nodeId -> (::) { id = nodeId, label = waypointId })
+                            []
+                            nodeIds
+                        )
+                        (waypointIdKeyDict .foldl
+                            (\waypointId waypoint acc ->
+                                List.map
+                                    (\requirementWaypointId ->
+                                        { from = waypointId, to = requirementWaypointId }
+                                    )
+                                    waypoint.requires
+                                    ++ List.map
+                                        (\requiredByWaypointId ->
+                                            { from = requiredByWaypointId, to = waypointId }
+                                        )
+                                        waypoint.requiredBy
+                                    ++ acc
+                            )
+                            []
+                            waypoints
+                            |> List.filterMap
+                                (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (waypointIdKeyDict .get edge.from nodeIds) (waypointIdKeyDict .get edge.to nodeIds))
+                        )
+            in
+            Data
+                { nodeIds = nodeIds
+                , priorities = priorities
+                , waypoints = waypoints
+                , graph = graph
+                , acyclic =
+                    graph
+                        |> Graph.stronglyConnectedComponents
+                        |> Result.mapError
+                            (List.Extra.findMap extractCycleFromStronglyConnectedComponent)
+                        |> Result.mapError (Maybe.withDefault [])
+                }
+
+        _ ->
+            Loading loading
+
+
 type WaypointRowHighlight
     = NoHighlight
     | Selected
@@ -216,38 +213,39 @@ view : Model -> Browser.Document Msg
 view model =
     { title = Strings.title.main
     , body =
-        (case ( model.priorities, model.waypoints ) of
-            ( Data priorities, Data waypoints ) ->
-                case waypoints.graph of
+        (case model.data of
+            Data data ->
+                case data.acyclic of
                     Err cycle ->
-                        viewWaypointsCycle cycle
+                        viewWaypointsCycle cycle data.waypoints
 
                     Ok acyclic ->
-                        viewWaypointsAcyclic model.selected priorities acyclic
+                        viewWaypointsAcyclic model.selected data.priorities data.graph acyclic data.waypoints
 
-            ( Error, _ ) ->
+            Error ->
                 [ Html.Styled.text Strings.error ]
 
-            ( _, Error ) ->
-                [ Html.Styled.text Strings.error ]
-
-            _ ->
+            Loading _ ->
                 []
         )
             |> List.map Html.Styled.toUnstyled
     }
 
 
-viewWaypointsCycle cycle =
+viewWaypointsCycle cycle waypoints =
     [ Html.Styled.div [] [ Html.Styled.text Strings.cycleDetected ]
     , Html.Styled.ul
         []
         (cycle
             |> List.map
-                (\{ id, value } ->
+                (\id ->
+                    let
+                        waypoint =
+                            waypointIdKeyDict .get id waypoints
+                    in
                     viewWaypointRowPrimitive
                         { text =
-                            value
+                            waypoint
                                 |> Maybe.map .text
                                 |> Maybe.withDefault
                                     Strings.unknownWaypoint
@@ -255,7 +253,7 @@ viewWaypointsCycle cycle =
                         , id = id
                         , highlight = NoHighlight
                         , url =
-                            value
+                            waypoint
                                 |> Maybe.andThen .url
                         }
                 )
@@ -263,18 +261,18 @@ viewWaypointsCycle cycle =
     ]
 
 
-viewWaypointsAcyclic selected priorities { graph, acyclic } =
+viewWaypointsAcyclic selected priorities graph acyclic waypoints =
     let
         seeds =
             graph
                 |> Graph.nodes
-                |> List.filter (\{ label } -> Just label.id == selected)
+                |> List.filter (\{ label } -> Just label == selected)
                 |> List.map .id
 
         transitiveRequires =
             Graph.guidedDfs
                 Graph.alongOutgoingEdges
-                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label.id ()))
+                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label ()))
                 seeds
                 (waypointIdKeyDict .empty)
                 graph
@@ -283,7 +281,7 @@ viewWaypointsAcyclic selected priorities { graph, acyclic } =
         transitiveRequiredBy =
             Graph.guidedDfs
                 Graph.alongIncomingEdges
-                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label.id ()))
+                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label ()))
                 seeds
                 (waypointIdKeyDict .empty)
                 graph
@@ -297,7 +295,7 @@ viewWaypointsAcyclic selected priorities { graph, acyclic } =
             |> List.map .node
             |> List.map .label
             |> List.map
-                (\{ id, value } ->
+                (\id ->
                     let
                         highlight =
                             if Just id == selected then
@@ -309,7 +307,7 @@ viewWaypointsAcyclic selected priorities { graph, acyclic } =
                             else
                                 NoHighlight
                     in
-                    case value of
+                    case waypointIdKeyDict .get id waypoints of
                         Just waypoint ->
                             viewWaypointRow
                                 { text = waypoint.text

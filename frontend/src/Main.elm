@@ -4,6 +4,7 @@ import Browser
 import Css
 import Dict
 import Graph
+import Heap
 import Html.Events.Extra.Pointer
 import Html.Styled
 import Html.Styled.Attributes
@@ -219,8 +220,8 @@ view model =
                     Err cycle ->
                         viewWaypointsCycle cycle data.waypoints
 
-                    Ok acyclic ->
-                        viewWaypointsAcyclic model.selected data.priorities data.graph acyclic data.waypoints
+                    Ok _ ->
+                        viewWaypointsAcyclic model.selected data
 
             Error ->
                 [ Html.Styled.text Strings.error ]
@@ -261,7 +262,7 @@ viewWaypointsCycle cycle waypoints =
     ]
 
 
-viewWaypointsAcyclic selected priorities graph acyclic waypoints =
+viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
     let
         seeds =
             graph
@@ -289,11 +290,8 @@ viewWaypointsAcyclic selected priorities graph acyclic waypoints =
     in
     [ Html.Styled.ul
         []
-        (acyclic
-            |> Graph.topologicalSort
-            |> List.reverse
-            |> List.map .node
-            |> List.map .label
+        (graph
+            |> squeeze priorities nodeIds
             |> List.map
                 (\id ->
                     let
@@ -328,6 +326,102 @@ viewWaypointsAcyclic selected priorities graph acyclic waypoints =
                 )
         )
     ]
+
+
+
+{- assumes graph is acyclic -}
+
+
+squeeze priorities nodeIds graph =
+    let
+        nodePriorities =
+            priorities
+                |> List.indexedMap
+                    (\priorityIndex priorityWaypointId ->
+                        { transitiveNodeIds =
+                            Graph.guidedDfs
+                                Graph.alongOutgoingEdges
+                                ((\{ node } -> (::) node.id) |> Graph.onDiscovery)
+                                ([ waypointIdKeyDict .get priorityWaypointId nodeIds ] |> List.filterMap identity)
+                                []
+                                graph
+                                |> Tuple.first
+                        , priorityIndex = priorityIndex
+                        }
+                    )
+                |> List.foldr
+                    (\{ priorityIndex, transitiveNodeIds } acc ->
+                        List.foldl
+                            (\nodeId ->
+                                IntDict.update
+                                    nodeId
+                                    (Maybe.withDefault [] >> (::) (List.length priorities - priorityIndex) >> Just)
+                            )
+                            acc
+                            transitiveNodeIds
+                    )
+                    IntDict.empty
+
+        initialQueue =
+            Graph.fold
+                (\{ node, outgoing } acc ->
+                    if IntDict.isEmpty outgoing then
+                        Heap.push node.id acc
+
+                    else
+                        acc
+                )
+                (Heap.empty
+                    (Heap.biggest
+                        |> Heap.by
+                            (\nodeId ->
+                                IntDict.get nodeId nodePriorities |> Maybe.withDefault []
+                            )
+                    )
+                )
+                graph
+
+        step queue selected stepAcc =
+            case Heap.pop queue of
+                Nothing ->
+                    stepAcc
+
+                Just ( head, tail ) ->
+                    let
+                        updatedSelected =
+                            IntDict.insert head () selected
+
+                        updatedQueue =
+                            case Graph.get head graph of
+                                Nothing ->
+                                    tail
+
+                                Just { incoming } ->
+                                    IntDict.foldl
+                                        (\incomingNodeId _ acc ->
+                                            case Graph.get incomingNodeId graph of
+                                                Nothing ->
+                                                    acc
+
+                                                Just { node, outgoing } ->
+                                                    if IntDict.isEmpty (IntDict.diff outgoing updatedSelected) then
+                                                        Heap.push node.id acc
+
+                                                    else
+                                                        acc
+                                        )
+                                        tail
+                                        incoming
+                    in
+                    step updatedQueue updatedSelected (head :: stepAcc)
+    in
+    step initialQueue IntDict.empty []
+        |> List.filterMap
+            (\nodeId ->
+                Graph.get nodeId graph
+                    |> Maybe.map (.node >> .label)
+            )
+        |> List.reverse
 
 
 viewWaypointRow { completed, highlight, id, text, url } =

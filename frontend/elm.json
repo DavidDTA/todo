@@ -6,6 +6,7 @@
     "elm-version": "0.19.1",
     "dependencies": {
         "direct": {
+            "TSFoster/elm-heap": "2.1.2",
             "dillonkearns/elm-form": "3.0.1",
             "dzuk-mutant/elm-css": "3.0.1",
             "elm/browser": "1.0.2",

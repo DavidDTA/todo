@@ -97,7 +97,8 @@ Deno.serve(async (req) => {
         completed: z.boolean().optional(),
         url: z.string().url().nullable().optional(),
         requires: z.string().array().optional(),
-        requiredBy: z.string().array().optional()
+        requiredBy: z.string().array().optional(),
+        source: z.string().optional(),
       })
         .strict()
         .safeParse(await req.json());

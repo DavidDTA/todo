@@ -9,7 +9,8 @@ const kvEntryParser =
       completed: z.boolean().catch(false),
       url: z.string().url().nullable().catch(null),
       requires: z.string().array().catch([]),
-      requiredBy: z.string().array().catch([])
+      requiredBy: z.string().array().catch([]),
+      source: z.string().catch("user"),
     }),
   );
 
@@ -24,7 +25,8 @@ export async function getAllWaypoints(kv: Deno.Kv) {
       completed: waypoint.completed,
       url: waypoint.url,
       requires: waypoint.requires,
-      requiredBy: waypoint.requiredBy
+      requiredBy: waypoint.requiredBy,
+      source: waypoint.source,
     });
   }
   return result;
@@ -42,7 +44,8 @@ export async function updateWaypoint(
     completed?: boolean,
     url?: string | null,
     requires?: string[],
-    requiredBy?: string[]
+    requiredBy?: string[],
+    source?: string,
   }) {
   const key = ["waypoints", id]
   await transact(async () => {
@@ -62,6 +65,9 @@ export async function updateWaypoint(
     }
     if (typeof update.requiredBy !== "undefined") {
       waypoint.requiredBy = update.requiredBy
+    }
+    if (typeof update.source !== "undefined") {
+      waypoint.source = update.source
     }
     return (await kv.atomic().check(entry).set(key, waypoint).commit()).ok;
   });

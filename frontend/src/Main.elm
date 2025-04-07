@@ -1,5 +1,6 @@
 module Main exposing (main)
 
+import Api
 import Browser
 import Css
 import Dict
@@ -17,47 +18,34 @@ import Maybe.Extra
 import Strings
 
 
-type WaypointId
-    = WaypointId String
-
-
-type alias Waypoint =
-    { text : String
-    , completed : Bool
-    , url : Maybe String
-    , requires : List WaypointId
-    , requiredBy : List WaypointId
-    }
-
-
 type RemoteData
     = Loading
-        { priorities : Maybe (List WaypointId)
-        , waypoints : Maybe (KeyDict.KeyDict WaypointId String Waypoint)
+        { priorities : Maybe (List Api.WaypointId)
+        , waypoints : Maybe (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
         }
     | Error
     | Data
-        { priorities : List WaypointId
-        , nodeIds : KeyDict.KeyDict WaypointId String Graph.NodeId
-        , waypoints : KeyDict.KeyDict WaypointId String Waypoint
-        , graph : Graph.Graph WaypointId ()
+        { priorities : List Api.WaypointId
+        , nodeIds : KeyDict.KeyDict Api.WaypointId String Graph.NodeId
+        , waypoints : KeyDict.KeyDict Api.WaypointId String Api.Waypoint
+        , graph : Graph.Graph Api.WaypointId ()
         , acyclic :
             Result
-                (List WaypointId)
-                (Graph.AcyclicGraph WaypointId ())
+                (List Api.WaypointId)
+                (Graph.AcyclicGraph Api.WaypointId ())
         }
 
 
 type alias Model =
-    { selected : Maybe WaypointId
+    { selected : Maybe Api.WaypointId
     , data : RemoteData
     }
 
 
 type Msg
-    = InitWaypoints (Result Http.Error (KeyDict.KeyDict WaypointId String Waypoint))
-    | InitPriorities (Result Http.Error (List WaypointId))
-    | Select (Maybe WaypointId)
+    = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
+    | InitPriorities (Result Http.Error (List Api.WaypointId))
+    | Select (Maybe Api.WaypointId)
 
 
 main =
@@ -514,13 +502,13 @@ decodeWaypoints =
         "waypoints"
         (Json.Decode.list
             (Json.Decode.map6
-                (\id text completed url requires requiredBy -> ( WaypointId id, Waypoint text completed url requires requiredBy ))
+                (\id text completed url requires requiredBy -> ( Api.waypointIdFromRaw id, Api.Waypoint text completed url requires requiredBy ))
                 (Json.Decode.field "id" Json.Decode.string)
                 (Json.Decode.field "text" Json.Decode.string)
                 (Json.Decode.field "completed" Json.Decode.bool)
                 (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
-                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
-                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
+                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map Api.waypointIdFromRaw Json.Decode.string)))
+                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map Api.waypointIdFromRaw Json.Decode.string)))
             )
             |> Json.Decode.andThen
                 (\list ->
@@ -538,8 +526,8 @@ decodeWaypoints =
 
 
 decodePriorities =
-    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string))
+    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map Api.waypointIdFromRaw Json.Decode.string))
 
 
 waypointIdKeyDict =
-    KeyDict.define WaypointId (\(WaypointId str) -> str)
+    KeyDict.define Api.waypointIdFromRaw Api.waypointIdToRaw

@@ -67,10 +67,7 @@ init flags =
             { url = "/-/api/waypoints"
             , expect = Http.expectJson InitWaypoints decodeWaypoints
             }
-        , Http.get
-            { url = "/-/api/priorities"
-            , expect = Http.expectJson InitPriorities decodePriorities
-            }
+        , Api.priorities InitPriorities
         ]
     )
 
@@ -523,10 +520,6 @@ decodeWaypoints =
                         Json.Decode.fail "Duplicate id"
                 )
         )
-
-
-decodePriorities =
-    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map Api.waypointIdFromRaw Json.Decode.string))
 
 
 waypointIdKeyDict =

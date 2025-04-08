@@ -1,4 +1,7 @@
-module Api exposing (Waypoint, WaypointId, waypointIdFromRaw, waypointIdToRaw)
+module Api exposing (Waypoint, WaypointId, priorities, waypointIdFromRaw, waypointIdToRaw)
+
+import Http
+import Json.Decode
 
 
 type WaypointId
@@ -20,3 +23,14 @@ waypointIdFromRaw =
 
 waypointIdToRaw (WaypointId raw) =
     raw
+
+
+priorities tag =
+    Http.get
+        { url = "/-/api/priorities"
+        , expect = Http.expectJson tag decodePriorities
+        }
+
+
+decodePriorities =
+    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map waypointIdFromRaw Json.Decode.string))

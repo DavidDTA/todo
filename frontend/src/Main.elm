@@ -63,10 +63,7 @@ init flags =
       , data = Loading { priorities = Nothing, waypoints = Nothing }
       }
     , Cmd.batch
-        [ Http.get
-            { url = "/-/api/waypoints"
-            , expect = Http.expectJson InitWaypoints decodeWaypoints
-            }
+        [ Api.waypoints InitWaypoints
         , Api.priorities InitPriorities
         ]
     )
@@ -125,12 +122,12 @@ resolveData loading =
         ( Just priorities, Just waypoints ) ->
             let
                 addIfMissing id dict =
-                    waypointIdKeyDict .update
+                    Api.waypointIdKeyDict .update
                         id
                         (\current ->
                             case current of
                                 Nothing ->
-                                    Just (waypointIdKeyDict .size dict)
+                                    Just (Api.waypointIdKeyDict .size dict)
 
                                 Just _ ->
                                     current
@@ -140,19 +137,19 @@ resolveData loading =
                 nodeIds =
                     List.foldl
                         addIfMissing
-                        (waypointIdKeyDict .empty)
+                        (Api.waypointIdKeyDict .empty)
                         (priorities
-                            ++ waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints
+                            ++ Api.waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints
                         )
 
                 graph =
                     Graph.fromNodesAndEdges
-                        (waypointIdKeyDict .foldl
+                        (Api.waypointIdKeyDict .foldl
                             (\waypointId nodeId -> (::) { id = nodeId, label = waypointId })
                             []
                             nodeIds
                         )
-                        (waypointIdKeyDict .foldl
+                        (Api.waypointIdKeyDict .foldl
                             (\waypointId waypoint acc ->
                                 List.map
                                     (\requirementWaypointId ->
@@ -169,7 +166,7 @@ resolveData loading =
                             []
                             waypoints
                             |> List.filterMap
-                                (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (waypointIdKeyDict .get edge.from nodeIds) (waypointIdKeyDict .get edge.to nodeIds))
+                                (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (Api.waypointIdKeyDict .get edge.from nodeIds) (Api.waypointIdKeyDict .get edge.to nodeIds))
                         )
             in
             Data
@@ -227,7 +224,7 @@ viewWaypointsCycle cycle waypoints =
                 (\id ->
                     let
                         waypoint =
-                            waypointIdKeyDict .get id waypoints
+                            Api.waypointIdKeyDict .get id waypoints
                     in
                     viewWaypointRowPrimitive
                         { text =
@@ -258,18 +255,18 @@ viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
         transitiveRequires =
             Graph.guidedDfs
                 Graph.alongOutgoingEdges
-                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label ()))
+                (Graph.onDiscovery (\{ node } -> Api.waypointIdKeyDict .insert node.label ()))
                 seeds
-                (waypointIdKeyDict .empty)
+                (Api.waypointIdKeyDict .empty)
                 graph
                 |> Tuple.first
 
         transitiveRequiredBy =
             Graph.guidedDfs
                 Graph.alongIncomingEdges
-                (Graph.onDiscovery (\{ node } -> waypointIdKeyDict .insert node.label ()))
+                (Graph.onDiscovery (\{ node } -> Api.waypointIdKeyDict .insert node.label ()))
                 seeds
-                (waypointIdKeyDict .empty)
+                (Api.waypointIdKeyDict .empty)
                 graph
                 |> Tuple.first
     in
@@ -284,13 +281,13 @@ viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
                             if Just id == selected then
                                 Selected
 
-                            else if waypointIdKeyDict .member id transitiveRequires || waypointIdKeyDict .member id transitiveRequiredBy then
+                            else if Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
                                 DescendantOrAncestor
 
                             else
                                 NoHighlight
                     in
-                    case waypointIdKeyDict .get id waypoints of
+                    case Api.waypointIdKeyDict .get id waypoints of
                         Just waypoint ->
                             viewWaypointRow
                                 { text = waypoint.text
@@ -327,7 +324,7 @@ squeeze priorities nodeIds graph =
                             Graph.guidedDfs
                                 Graph.alongOutgoingEdges
                                 ((\{ node } -> (::) node.id) |> Graph.onDiscovery)
-                                ([ waypointIdKeyDict .get priorityWaypointId nodeIds ] |> List.filterMap identity)
+                                ([ Api.waypointIdKeyDict .get priorityWaypointId nodeIds ] |> List.filterMap identity)
                                 []
                                 graph
                                 |> Tuple.first
@@ -492,35 +489,3 @@ extractCycleFromStronglyConnectedComponent graph =
         )
         Nothing
         graph
-
-
-decodeWaypoints =
-    Json.Decode.field
-        "waypoints"
-        (Json.Decode.list
-            (Json.Decode.map6
-                (\id text completed url requires requiredBy -> ( Api.waypointIdFromRaw id, Api.Waypoint text completed url requires requiredBy ))
-                (Json.Decode.field "id" Json.Decode.string)
-                (Json.Decode.field "text" Json.Decode.string)
-                (Json.Decode.field "completed" Json.Decode.bool)
-                (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
-                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map Api.waypointIdFromRaw Json.Decode.string)))
-                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map Api.waypointIdFromRaw Json.Decode.string)))
-            )
-            |> Json.Decode.andThen
-                (\list ->
-                    let
-                        dict =
-                            waypointIdKeyDict .fromList list
-                    in
-                    if waypointIdKeyDict .size dict == List.length list then
-                        Json.Decode.succeed dict
-
-                    else
-                        Json.Decode.fail "Duplicate id"
-                )
-        )
-
-
-waypointIdKeyDict =
-    KeyDict.define Api.waypointIdFromRaw Api.waypointIdToRaw

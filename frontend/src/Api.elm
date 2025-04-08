@@ -1,5 +1,6 @@
 module Api exposing (Waypoint, WaypointId, priorities, waypointIdKeyDict, waypoints)
 
+import Endpoint
 import Http
 import Json.Decode
 import KeyDict
@@ -26,18 +27,22 @@ waypointIdToRaw (WaypointId raw) =
     raw
 
 
+apiBase =
+    [ "-", "api" ]
+
+
 priorities tag =
-    Http.get
-        { url = "/-/api/priorities"
-        , expect = Http.expectJson tag decodePriorities
-        }
+    Endpoint.get
+        (apiBase ++ [ "priorities" ])
+        tag
+        decodePriorities
 
 
 waypoints tag =
-    Http.get
-        { url = "/-/api/waypoints"
-        , expect = Http.expectJson tag decodeWaypoints
-        }
+    Endpoint.get
+        (apiBase ++ [ "waypoints" ])
+        tag
+        decodeWaypoints
 
 
 decodePriorities =

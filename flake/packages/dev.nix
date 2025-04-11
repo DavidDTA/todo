@@ -7,8 +7,8 @@
       #! ${bash}/bin/bash
       set -e
       (cd elm && {
-        ${elmPackages.elm}/bin/elm make src/Login.elm --report=json --output=/dev/null >/dev/null
-        ${elmPackages.elm}/bin/elm make src/Frontend.elm --report=json --output=/dev/null >/dev/null
+        ${elmPackages.elm}/bin/elm make src/Frontend/Login.elm --report=json --output=/dev/null >/dev/null
+        ${elmPackages.elm}/bin/elm make src/Frontend/Main.elm --report=json --output=/dev/null >/dev/null
       }) 2>&1 >/dev/null |
         ${jq}/bin/jq --raw-output '
           .errors[] |
@@ -47,8 +47,8 @@
       rm -r "''${outdir}" 2>/dev/null || true
       mkdir -p "''${outdir}"
       cp -r backend "''${outdir}/server"
-      (cd elm && ${elmPackages.elm}/bin/elm make src/Login.elm --output=''${outdir}/server/index-unauthenticated.html)
-      (cd elm && ${elmPackages.elm}/bin/elm make src/Frontend.elm --output=''${outdir}/server/index-authenticated.html)
+      (cd elm && ${elmPackages.elm}/bin/elm make src/Frontend/Login.elm --output=''${outdir}/server/index-unauthenticated.html)
+      (cd elm && ${elmPackages.elm}/bin/elm make src/Frontend/Main.elm --output=''${outdir}/server/index-authenticated.html)
       (cd "''${outdir}/server" && TOKEN=password ${deno}/bin/deno run --unstable-kv --allow-net --allow-read --allow-env=TOKEN --check src/main.ts)
     '';
   }

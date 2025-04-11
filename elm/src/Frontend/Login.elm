@@ -1,4 +1,4 @@
-module Login exposing (main)
+module Frontend.Login exposing (main)
 
 import Browser
 import Browser.Navigation

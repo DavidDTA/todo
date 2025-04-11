@@ -1,4 +1,4 @@
-module Frontend exposing (main)
+module Frontend.Main exposing (main)
 
 import Api
 import Browser

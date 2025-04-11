@@ -3,6 +3,6 @@
     writeScriptBin "format" ''
       #! ${bash}/bin/bash
       set -e
-      cd frontend
+      cd elm
       ${elmPackages.elm-format}/bin/elm-format .
     ''

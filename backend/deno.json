@@ -5,7 +5,7 @@
   "deploy": {
     "exclude": [],
     "include": [],
-    "entrypoint": "src/main.ts"
+    "entrypoint": "src/scaffold.ts"
   },
   "imports": {
     "@std/http": "jsr:@std/http@^1.0.12",

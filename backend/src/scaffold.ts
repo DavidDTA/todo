@@ -3,6 +3,8 @@ import { serveFile } from "@std/http/file-server";
 import { getAuthentication, setAuthentication } from "./auth.ts"
 import { getPriorities, updatePriorities } from "./priorities.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
+// @ts-types="./elm/main.d.ts"
+import { Elm } from "./elm/main.js"
 
 function makeMatchRoute(url: string) {
   return function<T extends {[index:string]: string} = {}>(pattern: string) {
@@ -24,8 +26,7 @@ function makeMatchRoute(url: string) {
   };
 }
 
-
-Deno.serve(async (req) => {
+async function handle(req: Request) {
   const matchRoute = makeMatchRoute(req.url);
   const route_home =
     matchRoute("/");
@@ -111,4 +112,16 @@ Deno.serve(async (req) => {
     return new Response("");
   }
   return new Response(null, { status: 404 });
+}
+
+const app = Elm.Backend.Main.init();
+
+app.ports.typescriptHandler.subscribe(({ request, resolve }) => {
+  resolve(handle(request))
+});
+
+Deno.serve(async (request) => {
+  return await new Promise((resolve) => {
+    app.ports.requests.send({ request, resolve });
+  });
 });

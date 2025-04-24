@@ -1,7 +1,7 @@
-import * as fetchAdapter from "./http/fetch";
-import * as dom from "./browser/dom";
-export * from "./http";
-export * from "./browser";
+import * as fetchAdapter from "./http/fetch.js";
+import * as dom from "./browser/dom.js";
+export * from "./http/index.js";
+export * from "./browser/index.js";
 const BuiltInTasks = {
     debugLog: console.log,
     http: fetchAdapter.http,

@@ -1,5 +1,6 @@
 import * as z from "@npm/zod";
 import { serveFile } from "@std/http/file-server";
+import * as ConcurrentTask from "@andrewmacmurray/elm-concurrent-task";
 import { getAuthentication, setAuthentication } from "./auth.ts"
 import { getPriorities, updatePriorities } from "./priorities.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
@@ -115,6 +116,23 @@ async function handle(req: Request) {
 }
 
 const app = Elm.Backend.Main.init();
+
+ConcurrentTask.register({
+  tasks: {
+  },
+  ports: {
+    send: app.ports.taskSend,
+    receive: app.ports.taskReceive,
+  },
+});
+
+app.ports.responses.subscribe(({ resolve, status, body}) => {
+  resolve(new Response(body, { status }))
+});
+
+app.ports.taskErrors.subscribe(() => {
+  throw new Error()
+});
 
 app.ports.typescriptHandler.subscribe(({ request, resolve }) => {
   resolve(handle(request))

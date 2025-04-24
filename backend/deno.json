@@ -8,6 +8,7 @@
     "entrypoint": "src/scaffold.ts"
   },
   "imports": {
+    "@andrewmacmurray/elm-concurrent-task": "./src/vendored/elm-concurrent-task/1.1.1/lib/mjs/index.js",
     "@std/http": "jsr:@std/http@^1.0.12",
     "@npm/zod": "npm:zod@^3.24.1"
   }

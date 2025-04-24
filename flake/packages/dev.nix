@@ -52,6 +52,6 @@
       (cd elm && ${elmPackages.elm}/bin/elm make src/Frontend/Main.elm --output="''${outdir}/server/index-authenticated.html")
       (cd elm && ${elmPackages.elm}/bin/elm make src/Backend/Main.elm --output="''${outdir}/server/src/elm/main.js")
       ${elm-to-esm}/bin/elm-to-esm "''${outdir}/server/src/elm/main.js"
-      (cd "''${outdir}/server" && TOKEN=password ${deno}/bin/deno run --unstable-kv --allow-net --allow-read --allow-env=TOKEN --check src/scaffold.ts)
+      (cd "''${outdir}/server" && TOKEN=password ${deno}/bin/deno run --frozen=false --unstable-kv --allow-net --allow-read --allow-env=TOKEN --check src/scaffold.ts)
     '';
   }

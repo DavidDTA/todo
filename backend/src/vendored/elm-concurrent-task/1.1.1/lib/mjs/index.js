@@ -147,4 +147,3 @@ function prefixWith(prefix, tasks) {
 function cycleInt(options, i) {
     return i >= options.max ? 0 : i + 1;
 }
-//# sourceMappingURL=index.js.map

@@ -75,4 +75,3 @@ function getBrowserScene() {
         height: Math.max(body.scrollHeight, body.offsetHeight, elem.scrollHeight, elem.offsetHeight, elem.clientHeight),
     };
 }
-//# sourceMappingURL=dom.js.map

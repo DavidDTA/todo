@@ -124,4 +124,3 @@ function toHttpError(err) {
     `, err);
     return "NETWORK_ERROR";
 }
-//# sourceMappingURL=fetch.js.map

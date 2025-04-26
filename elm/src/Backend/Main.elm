@@ -1,41 +1,8 @@
-port module Backend.Main exposing (main)
+module Backend.Main exposing (main)
 
+import Backend.Interop
 import ConcurrentTask
-import Json.Decode
 import Platform
-
-
-port requests :
-    ({ request : Json.Decode.Value
-     , resolve : Json.Decode.Value
-     }
-     -> msg
-    )
-    -> Sub msg
-
-
-port typescriptHandler :
-    { request : Json.Decode.Value
-    , resolve : Json.Decode.Value
-    }
-    -> Cmd msg
-
-
-port responses :
-    { resolve : Json.Decode.Value
-    , status : Int
-    , body : String
-    }
-    -> Cmd msg
-
-
-port taskSend : Json.Decode.Value -> Cmd msg
-
-
-port taskReceive : (Json.Decode.Value -> msg) -> Sub msg
-
-
-port taskErrors : () -> Cmd msg
 
 
 type alias Model =
@@ -45,8 +12,8 @@ type alias Model =
 
 type Msg
     = NewRequest
-        { request : Json.Decode.Value
-        , resolve : Json.Decode.Value
+        { request : Backend.Interop.Request
+        , resolver : Backend.Interop.Resolver
         }
     | TaskProgress ( ConcurrentTask.Pool Msg Never TaskSuccess, Cmd Msg )
     | TaskCompleted (ConcurrentTask.Response Never TaskSuccess)
@@ -54,13 +21,13 @@ type Msg
 
 type TaskSuccess
     = Respond
-        { resolve : Json.Decode.Value
+        { resolver : Backend.Interop.Resolver
         , status : Int
         , body : String
         }
     | PassToTypescript
-        { request : Json.Decode.Value
-        , resolve : Json.Decode.Value
+        { request : Backend.Interop.Request
+        , resolver : Backend.Interop.Resolver
         }
 
 
@@ -86,25 +53,23 @@ update msg model =
             never error
 
         TaskCompleted (ConcurrentTask.UnexpectedError _) ->
-            ( model, taskErrors () )
+            ( model, Backend.Interop.sendTaskError )
 
         TaskCompleted (ConcurrentTask.Success success) ->
             case success of
                 Respond result ->
-                    ( model, responses result )
+                    ( model, Backend.Interop.sendResponse result )
 
                 PassToTypescript result ->
-                    ( model, typescriptHandler result )
+                    ( model, Backend.Interop.sendTypescriptHandoff result )
 
-        NewRequest { request, resolve } ->
+        NewRequest { request, resolver } ->
             let
                 ( pool, cmd ) =
-                    ConcurrentTask.attempt
-                        { pool = model.taskPool
-                        , send = taskSend
-                        , onComplete = TaskCompleted
-                        }
-                        (ConcurrentTask.succeed (PassToTypescript { request = request, resolve = resolve }))
+                    Backend.Interop.attemptTask
+                        TaskCompleted
+                        model.taskPool
+                        (ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver }))
             in
             ( { model | taskPool = pool }, cmd )
 
@@ -112,11 +77,6 @@ update msg model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ ConcurrentTask.onProgress
-            { send = taskSend
-            , receive = taskReceive
-            , onProgress = TaskProgress
-            }
-            model.taskPool
-        , requests NewRequest
+        [ Backend.Interop.receiveTaskProgress TaskProgress model.taskPool
+        , Backend.Interop.receiveRequests NewRequest
         ]

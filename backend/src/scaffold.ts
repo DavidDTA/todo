@@ -121,25 +121,25 @@ ConcurrentTask.register({
   tasks: {
   },
   ports: {
-    send: app.ports.taskSend,
-    receive: app.ports.taskReceive,
+    send: app.ports.taskRequests,
+    receive: app.ports.taskResponses,
   },
 });
 
-app.ports.responses.subscribe(({ resolve, status, body}) => {
-  resolve(new Response(body, { status }))
+app.ports.responses.subscribe(({ resolver, status, body}) => {
+  resolver(new Response(body, { status }))
 });
 
 app.ports.taskErrors.subscribe(() => {
   throw new Error()
 });
 
-app.ports.typescriptHandler.subscribe(({ request, resolve }) => {
-  resolve(handle(request))
+app.ports.typescriptHandoffs.subscribe(({ request, resolver }) => {
+  resolver(handle(request))
 });
 
 Deno.serve(async (request) => {
   return await new Promise((resolve) => {
-    app.ports.requests.send({ request, resolve });
+    app.ports.requests.send({ request, resolver: resolve });
   });
 });

@@ -4,5 +4,5 @@
       #! ${bash}/bin/bash
       set -e
       cd elm
-      ${elmPackages.elm-format}/bin/elm-format .
+      ${elmPackages.elm-format}/bin/elm-format --yes .
     ''

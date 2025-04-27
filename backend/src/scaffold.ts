@@ -1,7 +1,8 @@
 import * as z from "@npm/zod";
+import { getCookies } from "@std/http";
 import { serveFile } from "@std/http/file-server";
 import * as ConcurrentTask from "@andrewmacmurray/elm-concurrent-task";
-import { getAuthentication, setAuthentication } from "./auth.ts"
+import { setAuthentication } from "./auth.ts"
 import { getPriorities, updatePriorities } from "./priorities.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 // @ts-types="./elm/main.d.ts"
@@ -27,7 +28,7 @@ function makeMatchRoute(url: string) {
   };
 }
 
-async function handle(req: Request) {
+async function handle(req: Request, isAuthenticated: boolean) {
   const matchRoute = makeMatchRoute(req.url);
   const route_home =
     matchRoute("/");
@@ -39,7 +40,6 @@ async function handle(req: Request) {
     matchRoute("/-/api/waypoints");
   const route_api_waypoints_id =
     matchRoute<{ id: string }>("/-/api/waypoints/:id");
-  const isAuthenticated = getAuthentication(req);
   if (req.method == "GET" && route_home) {
     if (isAuthenticated) {
       return serveFile(req, "index-authenticated.html");
@@ -119,6 +119,8 @@ const app = Elm.Backend.Main.init();
 
 ConcurrentTask.register({
   tasks: {
+    "env:get": (key: string) => Deno.env.get(key) ?? null,
+    "cookie:get": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
   },
   ports: {
     send: app.ports.taskRequests,
@@ -134,8 +136,8 @@ app.ports.taskErrors.subscribe((message) => {
   throw new Error(message)
 });
 
-app.ports.typescriptHandoffs.subscribe(({ request, resolver }) => {
-  resolver(handle(request))
+app.ports.typescriptHandoffs.subscribe(({ request, resolver, isAuthenticated }) => {
+  resolver(handle(request, isAuthenticated))
 });
 
 Deno.serve(async (request) => {

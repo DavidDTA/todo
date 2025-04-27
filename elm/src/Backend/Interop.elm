@@ -1,7 +1,8 @@
-port module Backend.Interop exposing (Request, Resolver, attemptTask, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError, sendTypescriptHandoff)
+port module Backend.Interop exposing (Request, Resolver, attemptTask, getCookie, getEnvironment, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError, sendTypescriptHandoff)
 
 import ConcurrentTask
 import Json.Decode
+import Json.Encode
 
 
 port requests :
@@ -16,6 +17,7 @@ port requests :
 port typescriptHandoffs :
     { request : Json.Decode.Value
     , resolver : Json.Decode.Value
+    , isAuthenticated : Bool
     }
     -> Cmd msg
 
@@ -50,12 +52,12 @@ receiveRequests tag =
         (\{ request, resolver } -> tag { request = Request request, resolver = Resolver resolver })
 
 
-sendTypescriptHandoff { request, resolver } =
+sendTypescriptHandoff { request, resolver, isAuthenticated } =
     case request of
         Request jsRequest ->
             case resolver of
                 Resolver jsResolver ->
-                    typescriptHandoffs { request = jsRequest, resolver = jsResolver }
+                    typescriptHandoffs { request = jsRequest, resolver = jsResolver, isAuthenticated = isAuthenticated }
 
 
 sendResponse { resolver, status, body } =
@@ -88,3 +90,23 @@ attemptTask onComplete pool task =
         , onComplete = onComplete
         }
         task
+
+
+getEnvironment key =
+    ConcurrentTask.define
+        { function = "env:get"
+        , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
+        , errors = ConcurrentTask.expectNoErrors
+        , args = Json.Encode.string key
+        }
+
+
+getCookie key (Request request) =
+    ConcurrentTask.define
+        { function = "cookie:get"
+        , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "request", request ), ( "key", Json.Encode.string key ) ]
+        }

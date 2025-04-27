@@ -16,7 +16,7 @@ export const Elm: {
           taskRequests: portFromElm<any>,
           taskResponses: portToElm<any>,
           taskErrors: portFromElm<any>,
-          typescriptHandoffs: portFromElm<{ request: Request, resolver: resolver }>,
+          typescriptHandoffs: portFromElm<{ request: Request, resolver: resolver, isAuthenticated: boolean }>,
         }
       }
     }

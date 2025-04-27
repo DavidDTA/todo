@@ -28,6 +28,7 @@ type TaskSuccess
     | PassToTypescript
         { request : Backend.Interop.Request
         , resolver : Backend.Interop.Resolver
+        , isAuthenticated : Bool
         }
 
 
@@ -66,10 +67,15 @@ update msg model =
         NewRequest { request, resolver } ->
             let
                 ( pool, cmd ) =
-                    Backend.Interop.attemptTask
-                        TaskCompleted
-                        model.taskPool
-                        (ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver }))
+                    ConcurrentTask.map2
+                        (==)
+                        (Backend.Interop.getEnvironment consts.env.token)
+                        (Backend.Interop.getCookie consts.cookie.token request)
+                        |> ConcurrentTask.andThen
+                            (\isAuthenticated ->
+                                ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver, isAuthenticated = isAuthenticated })
+                            )
+                        |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
             ( { model | taskPool = pool }, cmd )
 
@@ -80,3 +86,13 @@ subscriptions model =
         [ Backend.Interop.receiveTaskProgress TaskProgress model.taskPool
         , Backend.Interop.receiveRequests NewRequest
         ]
+
+
+consts =
+    { env =
+        { token = "TOKEN"
+        }
+    , cookie =
+        { token = "__Host-d"
+        }
+    }

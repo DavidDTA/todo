@@ -1,8 +1,4 @@
-import { getCookies, setCookie } from "@std/http";
-
-export function getAuthentication(req: Request) {
-  return Deno.env.get(TOKEN_KEY_ENV) === getCookies(req.headers)[TOKEN_KEY_COOKIE];
-}
+import { setCookie } from "@std/http";
 
 export function setAuthentication(headers: Headers, token: string) {
   setCookie(headers, {
@@ -14,5 +10,4 @@ export function setAuthentication(headers: Headers, token: string) {
   });
 }
 
-const TOKEN_KEY_ENV = "TOKEN";
 const TOKEN_KEY_COOKIE = "__Host-d";

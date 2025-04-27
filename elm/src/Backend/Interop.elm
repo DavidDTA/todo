@@ -34,7 +34,7 @@ port taskRequests : Json.Decode.Value -> Cmd msg
 port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 
 
-port taskErrors : () -> Cmd msg
+port taskErrors : String -> Cmd msg
 
 
 type Request
@@ -69,7 +69,7 @@ sendResponse { resolver, status, body } =
 
 
 sendTaskError =
-    taskErrors ()
+    taskErrors
 
 
 receiveTaskProgress onProgress pool =

@@ -52,8 +52,8 @@ update msg model =
         TaskCompleted (ConcurrentTask.Error error) ->
             never error
 
-        TaskCompleted (ConcurrentTask.UnexpectedError _) ->
-            ( model, Backend.Interop.sendTaskError )
+        TaskCompleted (ConcurrentTask.UnexpectedError error) ->
+            ( model, Backend.Interop.sendTaskError "" )
 
         TaskCompleted (ConcurrentTask.Success success) ->
             case success of

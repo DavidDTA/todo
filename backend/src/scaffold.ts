@@ -130,8 +130,8 @@ app.ports.responses.subscribe(({ resolver, status, body}) => {
   resolver(new Response(body, { status }))
 });
 
-app.ports.taskErrors.subscribe(() => {
-  throw new Error()
+app.ports.taskErrors.subscribe((message) => {
+  throw new Error(message)
 });
 
 app.ports.typescriptHandoffs.subscribe(({ request, resolver }) => {

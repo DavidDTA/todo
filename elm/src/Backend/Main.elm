@@ -19,6 +19,10 @@ type Msg
     | TaskCompleted (ConcurrentTask.Response Never TaskSuccess)
 
 
+type Authentication
+    = UniversalAuthentication
+
+
 type TaskSuccess
     = Respond
         { resolver : Backend.Interop.Resolver
@@ -68,12 +72,18 @@ update msg model =
             let
                 ( pool, cmd ) =
                     ConcurrentTask.map2
-                        (==)
+                        (\envToken cookieToken ->
+                            if envToken == cookieToken then
+                                Just UniversalAuthentication
+
+                            else
+                                Nothing
+                        )
                         (Backend.Interop.getEnvironment consts.env.token)
                         (Backend.Interop.getCookie consts.cookie.token request)
                         |> ConcurrentTask.andThen
-                            (\isAuthenticated ->
-                                ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver, isAuthenticated = isAuthenticated })
+                            (\auth ->
+                                ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver, isAuthenticated = auth == Just UniversalAuthentication })
                             )
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in

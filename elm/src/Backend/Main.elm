@@ -1,7 +1,9 @@
 module Backend.Main exposing (main)
 
+import Api
 import Backend.Interop
 import ConcurrentTask
+import Endpoints
 import Platform
 
 
@@ -71,20 +73,7 @@ update msg model =
         NewRequest { request, resolver } ->
             let
                 ( pool, cmd ) =
-                    ConcurrentTask.map2
-                        (\envToken cookieToken ->
-                            if envToken == cookieToken then
-                                Just UniversalAuthentication
-
-                            else
-                                Nothing
-                        )
-                        (Backend.Interop.getEnvironment consts.env.token)
-                        (Backend.Interop.getCookie consts.cookie.token request)
-                        |> ConcurrentTask.andThen
-                            (\auth ->
-                                ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver, isAuthenticated = auth == Just UniversalAuthentication })
-                            )
+                    Endpoints.get endpoints request resolver
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
             ( { model | taskPool = pool }, cmd )
@@ -96,6 +85,27 @@ subscriptions model =
         [ Backend.Interop.receiveTaskProgress TaskProgress model.taskPool
         , Backend.Interop.receiveRequests NewRequest
         ]
+
+
+endpoints =
+    Endpoints.initEndpoints
+        (\auth request resolver ->
+            ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver, isAuthenticated = auth == Just UniversalAuthentication })
+        )
+        |> Endpoints.map
+            (\handler request resolver ->
+                ConcurrentTask.map2
+                    (\envToken cookieToken ->
+                        if envToken == cookieToken then
+                            Just UniversalAuthentication
+
+                        else
+                            Nothing
+                    )
+                    (Backend.Interop.getEnvironment consts.env.token)
+                    (Backend.Interop.getCookie consts.cookie.token request)
+                    |> ConcurrentTask.andThen (\auth -> handler auth request resolver)
+            )
 
 
 consts =

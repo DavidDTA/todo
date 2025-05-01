@@ -4,6 +4,7 @@ import Api
 import Browser
 import Css
 import Dict
+import Endpoint
 import Graph
 import Heap
 import Html.Events.Extra.Pointer
@@ -63,8 +64,8 @@ init flags =
       , data = Loading { priorities = Nothing, waypoints = Nothing }
       }
     , Cmd.batch
-        [ Api.waypoints InitWaypoints
-        , Api.priorities InitPriorities
+        [ Endpoint.request Api.waypoints InitWaypoints
+        , Endpoint.request Api.priorities InitPriorities
         ]
     )
 

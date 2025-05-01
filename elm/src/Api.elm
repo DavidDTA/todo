@@ -31,17 +31,15 @@ apiBase =
     [ "-", "api" ]
 
 
-priorities tag =
+priorities =
     Endpoint.get
         (apiBase ++ [ "priorities" ])
-        tag
         decodePriorities
 
 
-waypoints tag =
+waypoints =
     Endpoint.get
         (apiBase ++ [ "waypoints" ])
-        tag
         decodeWaypoints
 
 

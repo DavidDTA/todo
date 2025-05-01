@@ -1,4 +1,4 @@
-port module Backend.Interop exposing (Request, Resolver, attemptTask, getCookie, getEnvironment, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError, sendTypescriptHandoff)
+port module Backend.Interop exposing (Request, Resolver, attemptTask, getCookie, getEnvironment, getMethod, getUrl, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError, sendTypescriptHandoff)
 
 import ConcurrentTask
 import Json.Decode
@@ -101,9 +101,27 @@ getEnvironment key =
         }
 
 
+getMethod (Request request) =
+    ConcurrentTask.define
+        { function = "req:getMethod"
+        , expect = ConcurrentTask.expectJson Json.Decode.string
+        , errors = ConcurrentTask.expectNoErrors
+        , args = request
+        }
+
+
+getUrl (Request request) =
+    ConcurrentTask.define
+        { function = "req:getUrl"
+        , expect = ConcurrentTask.expectJson Json.Decode.string
+        , errors = ConcurrentTask.expectNoErrors
+        , args = request
+        }
+
+
 getCookie key (Request request) =
     ConcurrentTask.define
-        { function = "cookie:get"
+        { function = "req:getCookie"
         , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
         , errors = ConcurrentTask.expectNoErrors
         , args =

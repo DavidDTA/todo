@@ -72,8 +72,34 @@ update msg model =
         NewRequest { request, resolver } ->
             let
                 ( pool, cmd ) =
-                    Endpoints.get endpoints request
-                        |> ConcurrentTask.map (\response -> { resolver = resolver, response = response })
+                    ConcurrentTask.map2
+                        (\method url ->
+                            case Url.fromString url of
+                                Nothing ->
+                                    ConcurrentTask.succeed badRequest
+
+                                Just { path } ->
+                                    case String.split "/" path of
+                                        [] ->
+                                            ConcurrentTask.succeed badRequest
+
+                                        "" :: pathSegments ->
+                                            let
+                                                decodedPathSegments =
+                                                    List.filterMap Url.percentDecode pathSegments
+                                            in
+                                            if List.length pathSegments == List.length decodedPathSegments then
+                                                Endpoints.get method decodedPathSegments endpoints request
+
+                                            else
+                                                ConcurrentTask.succeed badRequest
+
+                                        _ ->
+                                            ConcurrentTask.succeed badRequest
+                        )
+                        (Backend.Interop.getMethod request)
+                        (Backend.Interop.getUrl request)
+                        |> ConcurrentTask.andThen (ConcurrentTask.map (\response -> { resolver = resolver, response = response }))
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
             ( { model | taskPool = pool }, cmd )
@@ -106,6 +132,10 @@ endpoints =
                     (Backend.Interop.getCookie consts.cookie.token request)
                     |> ConcurrentTask.andThen (\auth -> handler auth request)
             )
+
+
+badRequest =
+    Respond { status = 400, body = "" }
 
 
 consts =

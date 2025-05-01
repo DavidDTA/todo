@@ -120,7 +120,9 @@ const app = Elm.Backend.Main.init();
 ConcurrentTask.register({
   tasks: {
     "env:get": (key: string) => Deno.env.get(key) ?? null,
-    "cookie:get": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
+    "req:getMethod": (request: Request) => request.method,
+    "req:getUrl": (request: Request) => request.url,
+    "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
   },
   ports: {
     send: app.ports.taskRequests,

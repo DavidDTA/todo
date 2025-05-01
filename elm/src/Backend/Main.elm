@@ -5,10 +5,11 @@ import Backend.Interop
 import ConcurrentTask
 import Endpoints
 import Platform
+import Url
 
 
 type alias Model =
-    { taskPool : ConcurrentTask.Pool Msg Never TaskSuccess
+    { taskPool : ConcurrentTask.Pool Msg Never { response : Response, resolver : Backend.Interop.Resolver }
     }
 
 
@@ -17,23 +18,21 @@ type Msg
         { request : Backend.Interop.Request
         , resolver : Backend.Interop.Resolver
         }
-    | TaskProgress ( ConcurrentTask.Pool Msg Never TaskSuccess, Cmd Msg )
-    | TaskCompleted (ConcurrentTask.Response Never TaskSuccess)
+    | TaskProgress ( ConcurrentTask.Pool Msg Never { response : Response, resolver : Backend.Interop.Resolver }, Cmd Msg )
+    | TaskCompleted (ConcurrentTask.Response Never { response : Response, resolver : Backend.Interop.Resolver })
 
 
 type Authentication
     = UniversalAuthentication
 
 
-type TaskSuccess
+type Response
     = Respond
-        { resolver : Backend.Interop.Resolver
-        , status : Int
+        { status : Int
         , body : String
         }
     | PassToTypescript
         { request : Backend.Interop.Request
-        , resolver : Backend.Interop.Resolver
         , isAuthenticated : Bool
         }
 
@@ -62,18 +61,19 @@ update msg model =
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
             ( model, Backend.Interop.sendTaskError "" )
 
-        TaskCompleted (ConcurrentTask.Success success) ->
-            case success of
-                Respond result ->
-                    ( model, Backend.Interop.sendResponse result )
+        TaskCompleted (ConcurrentTask.Success { resolver, response }) ->
+            case response of
+                Respond { status, body } ->
+                    ( model, Backend.Interop.sendResponse { status = status, body = body, resolver = resolver } )
 
-                PassToTypescript result ->
-                    ( model, Backend.Interop.sendTypescriptHandoff result )
+                PassToTypescript { request, isAuthenticated } ->
+                    ( model, Backend.Interop.sendTypescriptHandoff { request = request, resolver = resolver, isAuthenticated = isAuthenticated } )
 
         NewRequest { request, resolver } ->
             let
                 ( pool, cmd ) =
-                    Endpoints.get endpoints request resolver
+                    Endpoints.get endpoints request
+                        |> ConcurrentTask.map (\response -> { resolver = resolver, response = response })
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
             ( { model | taskPool = pool }, cmd )
@@ -89,11 +89,11 @@ subscriptions model =
 
 endpoints =
     Endpoints.initEndpoints
-        (\auth request resolver ->
-            ConcurrentTask.succeed (PassToTypescript { request = request, resolver = resolver, isAuthenticated = auth == Just UniversalAuthentication })
+        (\auth request ->
+            ConcurrentTask.succeed (PassToTypescript { request = request, isAuthenticated = auth == Just UniversalAuthentication })
         )
         |> Endpoints.map
-            (\handler request resolver ->
+            (\handler request ->
                 ConcurrentTask.map2
                     (\envToken cookieToken ->
                         if envToken == cookieToken then
@@ -104,7 +104,7 @@ endpoints =
                     )
                     (Backend.Interop.getEnvironment consts.env.token)
                     (Backend.Interop.getCookie consts.cookie.token request)
-                    |> ConcurrentTask.andThen (\auth -> handler auth request resolver)
+                    |> ConcurrentTask.andThen (\auth -> handler auth request)
             )
 
 

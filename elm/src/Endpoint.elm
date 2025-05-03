@@ -7,7 +7,11 @@ import String
 import Url
 
 
-type Endpoint a
+type Available
+    = Available
+
+
+type Endpoint att a
     = Endpoint
         { method : String
         , pathComponents : List String
@@ -15,6 +19,7 @@ type Endpoint a
         }
 
 
+get : List String -> Json.Decode.Decoder a -> Endpoint { request : Available } a
 get pathComponents responseDecoder =
     Endpoint
         { method = "GET"
@@ -23,6 +28,7 @@ get pathComponents responseDecoder =
         }
 
 
+request : Endpoint { att | request : Available } a -> (Result Http.Error a -> b) -> Cmd b
 request (Endpoint { method, pathComponents, responseDecoder }) tag =
     Http.request
         { method = method

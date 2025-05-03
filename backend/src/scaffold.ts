@@ -120,6 +120,8 @@ const app = Elm.Backend.Main.init();
 ConcurrentTask.register({
   tasks: {
     "env:get": (key: string) => Deno.env.get(key) ?? null,
+    "resp:get": ({ status, body }: { status: number, body: string }) => new Response(body, { status }),
+    "resp:legacy": ({ request, isAuthenticated }: { request: Request, isAuthenticated: boolean }) => handle(request, isAuthenticated),
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
@@ -130,16 +132,12 @@ ConcurrentTask.register({
   },
 });
 
-app.ports.responses.subscribe(({ resolver, status, body}) => {
-  resolver(new Response(body, { status }))
+app.ports.responses.subscribe(({ response, resolver }) => {
+  resolver(response)
 });
 
 app.ports.taskErrors.subscribe((message) => {
   throw new Error(message)
-});
-
-app.ports.typescriptHandoffs.subscribe(({ request, resolver, isAuthenticated }) => {
-  resolver(handle(request, isAuthenticated))
 });
 
 Deno.serve(async (request) => {

@@ -9,7 +9,7 @@ import Url
 
 
 type alias Model =
-    { taskPool : ConcurrentTask.Pool Msg Never { response : Response, resolver : Backend.Interop.Resolver }
+    { taskPool : ConcurrentTask.Pool Msg Never { response : Backend.Interop.Response, resolver : Backend.Interop.Resolver }
     }
 
 
@@ -18,23 +18,12 @@ type Msg
         { request : Backend.Interop.Request
         , resolver : Backend.Interop.Resolver
         }
-    | TaskProgress ( ConcurrentTask.Pool Msg Never { response : Response, resolver : Backend.Interop.Resolver }, Cmd Msg )
-    | TaskCompleted (ConcurrentTask.Response Never { response : Response, resolver : Backend.Interop.Resolver })
+    | TaskProgress ( ConcurrentTask.Pool Msg Never { response : Backend.Interop.Response, resolver : Backend.Interop.Resolver }, Cmd Msg )
+    | TaskCompleted (ConcurrentTask.Response Never { response : Backend.Interop.Response, resolver : Backend.Interop.Resolver })
 
 
 type Authentication
     = UniversalAuthentication
-
-
-type Response
-    = Respond
-        { status : Int
-        , body : String
-        }
-    | PassToTypescript
-        { request : Backend.Interop.Request
-        , isAuthenticated : Bool
-        }
 
 
 main =
@@ -61,13 +50,8 @@ update msg model =
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
             ( model, Backend.Interop.sendTaskError "" )
 
-        TaskCompleted (ConcurrentTask.Success { resolver, response }) ->
-            case response of
-                Respond { status, body } ->
-                    ( model, Backend.Interop.sendResponse { status = status, body = body, resolver = resolver } )
-
-                PassToTypescript { request, isAuthenticated } ->
-                    ( model, Backend.Interop.sendTypescriptHandoff { request = request, resolver = resolver, isAuthenticated = isAuthenticated } )
+        TaskCompleted (ConcurrentTask.Success { response, resolver }) ->
+            ( model, Backend.Interop.sendResponse response resolver )
 
         NewRequest { request, resolver } ->
             let
@@ -76,12 +60,12 @@ update msg model =
                         (\method url ->
                             case Url.fromString url of
                                 Nothing ->
-                                    ConcurrentTask.succeed badRequest
+                                    badRequest
 
                                 Just { path } ->
                                     case String.split "/" path of
                                         [] ->
-                                            ConcurrentTask.succeed badRequest
+                                            badRequest
 
                                         "" :: pathSegments ->
                                             let
@@ -92,10 +76,10 @@ update msg model =
                                                 Endpoints.get method decodedPathSegments endpoints request
 
                                             else
-                                                ConcurrentTask.succeed badRequest
+                                                badRequest
 
                                         _ ->
-                                            ConcurrentTask.succeed badRequest
+                                            badRequest
                         )
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
@@ -116,7 +100,7 @@ subscriptions model =
 endpoints =
     Endpoints.initEndpoints
         (\auth request ->
-            ConcurrentTask.succeed (PassToTypescript { request = request, isAuthenticated = auth == Just UniversalAuthentication })
+            Backend.Interop.getLegacyResponse { request = request, isAuthenticated = auth == Just UniversalAuthentication }
         )
         |> Endpoints.map
             (\handler request ->
@@ -135,7 +119,7 @@ endpoints =
 
 
 badRequest =
-    Respond { status = 400, body = "" }
+    Backend.Interop.getResponse { status = 400, body = "" }
 
 
 consts =

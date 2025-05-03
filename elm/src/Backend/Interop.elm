@@ -1,4 +1,4 @@
-port module Backend.Interop exposing (Request, Resolver, attemptTask, getCookie, getEnvironment, getMethod, getUrl, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError, sendTypescriptHandoff)
+port module Backend.Interop exposing (Request, Resolver, Response, attemptTask, getCookie, getEnvironment, getLegacyResponse, getMethod, getResponse, getUrl, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError)
 
 import ConcurrentTask
 import Json.Decode
@@ -14,18 +14,9 @@ port requests :
     -> Sub msg
 
 
-port typescriptHandoffs :
-    { request : Json.Decode.Value
-    , resolver : Json.Decode.Value
-    , isAuthenticated : Bool
-    }
-    -> Cmd msg
-
-
 port responses :
-    { resolver : Json.Decode.Value
-    , status : Int
-    , body : String
+    { response : Json.Decode.Value
+    , resolver : Json.Decode.Value
     }
     -> Cmd msg
 
@@ -43,6 +34,10 @@ type Request
     = Request Json.Decode.Value
 
 
+type Response
+    = Response Json.Decode.Value
+
+
 type Resolver
     = Resolver Json.Decode.Value
 
@@ -52,22 +47,11 @@ receiveRequests tag =
         (\{ request, resolver } -> tag { request = Request request, resolver = Resolver resolver })
 
 
-sendTypescriptHandoff { request, resolver, isAuthenticated } =
-    case request of
-        Request jsRequest ->
-            case resolver of
-                Resolver jsResolver ->
-                    typescriptHandoffs { request = jsRequest, resolver = jsResolver, isAuthenticated = isAuthenticated }
-
-
-sendResponse { resolver, status, body } =
-    case resolver of
-        Resolver jsResolver ->
-            responses
-                { resolver = jsResolver
-                , status = status
-                , body = body
-                }
+sendResponse (Response response) (Resolver resolver) =
+    responses
+        { response = response
+        , resolver = resolver
+        }
 
 
 sendTaskError =
@@ -127,4 +111,34 @@ getCookie key (Request request) =
         , args =
             Json.Encode.object
                 [ ( "request", request ), ( "key", Json.Encode.string key ) ]
+        }
+
+
+getResponse { status, body } =
+    ConcurrentTask.define
+        { function = "resp:get"
+        , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "status", Json.Encode.int status )
+                , ( "body", Json.Encode.string body )
+                ]
+        }
+
+
+getLegacyResponse { request, isAuthenticated } =
+    ConcurrentTask.define
+        { function = "resp:legacy"
+        , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "request"
+                  , case request of
+                        Request jsRequest ->
+                            jsRequest
+                  )
+                , ( "isAuthenticated", Json.Encode.bool isAuthenticated )
+                ]
         }

@@ -1,5 +1,13 @@
-module Endpoint exposing (get, request)
+module Endpoint exposing
+    ( Handlers
+    , get
+    , getHandler
+    , handlers
+    , mapHandlers
+    , request
+    )
 
+import Dict
 import Http
 import Json.Decode
 import List
@@ -38,4 +46,27 @@ request (Endpoint { method, pathComponents, responseDecoder }) tag =
         , expect = Http.expectJson tag responseDecoder
         , timeout = Nothing
         , tracker = Nothing
+        }
+
+
+type Handlers a
+    = Handlers
+        { fallback : a
+        , registered : Dict.Dict (List String) a
+        }
+
+
+handlers fallback =
+    Handlers { fallback = fallback, registered = Dict.empty }
+
+
+getHandler method pathSegments (Handlers { fallback, registered }) =
+    Dict.get (method :: pathSegments) registered
+        |> Maybe.withDefault fallback
+
+
+mapHandlers fn (Handlers { fallback, registered }) =
+    Handlers
+        { fallback = fn fallback
+        , registered = Dict.map (always fn) registered
         }

@@ -3,7 +3,7 @@ module Backend.Main exposing (main)
 import Api
 import Backend.Interop
 import ConcurrentTask
-import Endpoints
+import Endpoint
 import Platform
 import Url
 
@@ -73,7 +73,7 @@ update msg model =
                                                     List.filterMap Url.percentDecode pathSegments
                                             in
                                             if List.length pathSegments == List.length decodedPathSegments then
-                                                Endpoints.get method decodedPathSegments endpoints request
+                                                Endpoint.getHandler method decodedPathSegments endpoints request
 
                                             else
                                                 badRequest
@@ -98,11 +98,11 @@ subscriptions model =
 
 
 endpoints =
-    Endpoints.initEndpoints
+    Endpoint.handlers
         (\auth request ->
             Backend.Interop.getLegacyResponse { request = request, isAuthenticated = auth == Just UniversalAuthentication }
         )
-        |> Endpoints.map
+        |> Endpoint.mapHandlers
             (\handler request ->
                 ConcurrentTask.map2
                     (\envToken cookieToken ->

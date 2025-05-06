@@ -28,7 +28,7 @@ function makeMatchRoute(url: string) {
   };
 }
 
-async function handle(req: Request, isAuthenticated: boolean) {
+async function handle(req: Request) {
   const matchRoute = makeMatchRoute(req.url);
   const route_api_login =
     matchRoute("/-/api/login");
@@ -51,11 +51,7 @@ async function handle(req: Request, isAuthenticated: boolean) {
     const headers = new Headers();
     setAuthentication(headers, body.data.token);
     return new Response(null, { headers });
-  }
-  if (!isAuthenticated) {
-    return new Response(null, { status: 403 });
-  }
-  if (req.method == "GET" && route_api_priorities) {
+  } else if (req.method == "GET" && route_api_priorities) {
     const kv = await Deno.openKv();
     const priorities = await getPriorities(kv);
     await kv.close()
@@ -114,7 +110,7 @@ ConcurrentTask.register({
     "env:get": (key: string) => Deno.env.get(key) ?? null,
     "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
     "resp:get": ({ status, body }: { status: number, body: string }) => new Response(body, { status }),
-    "resp:legacy": ({ request, isAuthenticated }: { request: Request, isAuthenticated: boolean }) => handle(request, isAuthenticated),
+    "resp:legacy": handle,
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,

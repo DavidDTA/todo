@@ -99,13 +99,21 @@ subscriptions model =
 
 endpoints =
     Endpoint.handlers
-        (\auth request ->
-            Backend.Interop.getLegacyResponse { request = request, isAuthenticated = auth == Just UniversalAuthentication }
+        (\UniversalAuthentication ->
+            Backend.Interop.getLegacyResponse
         )
         |> Endpoint.mapHandlers
             (\handler request ->
                 getAuthentication request
-                    |> ConcurrentTask.andThen (\auth -> handler auth request)
+                    |> ConcurrentTask.andThen
+                        (\maybeAuth ->
+                            case maybeAuth of
+                                Nothing ->
+                                    forbidden
+
+                                Just auth ->
+                                    handler auth request
+                        )
             )
         |> Endpoint.addHandler Api.home
             (\request ->
@@ -124,6 +132,7 @@ endpoints =
                                 }
                         )
             )
+        |> Endpoint.addHandler Api.login Backend.Interop.getLegacyResponse
 
 
 getAuthentication request =
@@ -141,6 +150,10 @@ getAuthentication request =
 
 badRequest =
     Backend.Interop.getResponse { status = 400, body = "" }
+
+
+forbidden =
+    Backend.Interop.getResponse { status = 403, body = "" }
 
 
 consts =

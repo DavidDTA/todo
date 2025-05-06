@@ -1,4 +1,12 @@
-module Api exposing (Waypoint, WaypointId, home, priorities, waypointIdKeyDict, waypoints)
+module Api exposing
+    ( Waypoint
+    , WaypointId
+    , home
+    , login
+    , priorities
+    , waypointIdKeyDict
+    , waypoints
+    )
 
 import Endpoint
 import Http
@@ -34,6 +42,13 @@ home =
 
 apiBase =
     [ "-", "api" ]
+
+
+login =
+    Endpoint.post
+        (apiBase ++ [ "login" ])
+        (\_ _ -> never)
+        identity
 
 
 priorities =

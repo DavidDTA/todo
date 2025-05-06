@@ -5,6 +5,7 @@ module Endpoint exposing
     , getHandler
     , handlers
     , mapHandlers
+    , post
     , request
     )
 
@@ -31,6 +32,10 @@ type Endpoint request response
 
 get =
     endpoint "GET"
+
+
+post =
+    endpoint "POST"
 
 
 endpoint method path request_ response =

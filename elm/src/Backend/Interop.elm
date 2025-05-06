@@ -1,4 +1,20 @@
-port module Backend.Interop exposing (Request, Resolver, Response, attemptTask, getCookie, getEnvironment, getFileResponse, getLegacyResponse, getMethod, getResponse, getUrl, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError)
+port module Backend.Interop exposing
+    ( Request
+    , Resolver
+    , Response
+    , attemptTask
+    , getCookie
+    , getEnvironment
+    , getFileResponse
+    , getLegacyResponse
+    , getMethod
+    , getResponse
+    , getUrl
+    , receiveRequests
+    , receiveTaskProgress
+    , sendResponse
+    , sendTaskError
+    )
 
 import ConcurrentTask
 import Json.Decode
@@ -144,18 +160,10 @@ getFileResponse { request, filename } =
         }
 
 
-getLegacyResponse { request, isAuthenticated } =
+getLegacyResponse (Request request) =
     ConcurrentTask.define
         { function = "resp:legacy"
         , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
         , errors = ConcurrentTask.expectNoErrors
-        , args =
-            Json.Encode.object
-                [ ( "request"
-                  , case request of
-                        Request jsRequest ->
-                            jsRequest
-                  )
-                , ( "isAuthenticated", Json.Encode.bool isAuthenticated )
-                ]
+        , args = request
         }

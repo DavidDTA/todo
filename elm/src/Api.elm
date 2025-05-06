@@ -4,6 +4,7 @@ import Endpoint
 import Http
 import Json.Decode
 import KeyDict
+import Url
 
 
 type WaypointId
@@ -34,13 +35,15 @@ apiBase =
 priorities =
     Endpoint.get
         (apiBase ++ [ "priorities" ])
-        decodePriorities
+        (jsonRequest decodePriorities)
+        never
 
 
 waypoints =
     Endpoint.get
         (apiBase ++ [ "waypoints" ])
-        decodeWaypoints
+        (jsonRequest decodeWaypoints)
+        never
 
 
 decodePriorities =
@@ -73,6 +76,18 @@ decodeWaypoints =
                         Json.Decode.fail "Duplicate id"
                 )
         )
+
+
+jsonRequest decoder method pathSegments tag =
+    Http.request
+        { method = method
+        , headers = []
+        , url = "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)
+        , body = Http.emptyBody
+        , expect = Http.expectJson tag decoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
 
 
 waypointIdKeyDict =

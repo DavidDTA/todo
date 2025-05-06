@@ -19,40 +19,36 @@ type Available
     = Available
 
 
-type Endpoint att a
+type Endpoint request response
     = Endpoint
         { method : String
         , pathComponents : List String
-        , responseDecoder : Json.Decode.Decoder a
+        , request_ : request
+        , response : response
         }
 
 
-get : List String -> Json.Decode.Decoder a -> Endpoint { request : Available } a
-get pathComponents responseDecoder =
+get =
+    endpoint "GET"
+
+
+endpoint method pathComponents request_ response =
     Endpoint
-        { method = "GET"
-        , pathComponents = pathComponents
-        , responseDecoder = responseDecoder
-        }
-
-
-request : Endpoint { att | request : Available } a -> (Result Http.Error a -> b) -> Cmd b
-request (Endpoint { method, pathComponents, responseDecoder }) tag =
-    Http.request
         { method = method
-        , headers = []
-        , url = "/" ++ String.join "/" (List.map Url.percentEncode pathComponents)
-        , body = Http.emptyBody
-        , expect = Http.expectJson tag responseDecoder
-        , timeout = Nothing
-        , tracker = Nothing
+        , pathComponents = pathComponents
+        , request_ = request_ method pathComponents
+        , response = response
         }
 
 
-type Handlers a
+request (Endpoint { request_ }) =
+    request_
+
+
+type Handlers response
     = Handlers
-        { fallback : a
-        , registered : Dict.Dict (List String) a
+        { fallback : response
+        , registered : Dict.Dict (List String) response
         }
 
 

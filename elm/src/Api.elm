@@ -1,4 +1,4 @@
-module Api exposing (Waypoint, WaypointId, priorities, waypointIdKeyDict, waypoints)
+module Api exposing (Waypoint, WaypointId, home, priorities, waypointIdKeyDict, waypoints)
 
 import Endpoint
 import Http
@@ -26,6 +26,10 @@ waypointIdFromRaw =
 
 waypointIdToRaw (WaypointId raw) =
     raw
+
+
+home =
+    Endpoint.get [ "" ] (\_ _ -> never) identity
 
 
 apiBase =

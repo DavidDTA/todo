@@ -30,8 +30,6 @@ function makeMatchRoute(url: string) {
 
 async function handle(req: Request, isAuthenticated: boolean) {
   const matchRoute = makeMatchRoute(req.url);
-  const route_home =
-    matchRoute("/");
   const route_api_login =
     matchRoute("/-/api/login");
   const route_api_priorities =
@@ -40,13 +38,7 @@ async function handle(req: Request, isAuthenticated: boolean) {
     matchRoute("/-/api/waypoints");
   const route_api_waypoints_id =
     matchRoute<{ id: string }>("/-/api/waypoints/:id");
-  if (req.method == "GET" && route_home) {
-    if (isAuthenticated) {
-      return serveFile(req, "index-authenticated.html");
-    } else {
-      return serveFile(req, "index-unauthenticated.html");
-    }
-  } else if (req.method == "POST" && route_api_login) {
+  if (req.method == "POST" && route_api_login) {
     const body =
       z.object({
         token: z.string()
@@ -120,6 +112,7 @@ const app = Elm.Backend.Main.init();
 ConcurrentTask.register({
   tasks: {
     "env:get": (key: string) => Deno.env.get(key) ?? null,
+    "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
     "resp:get": ({ status, body }: { status: number, body: string }) => new Response(body, { status }),
     "resp:legacy": ({ request, isAuthenticated }: { request: Request, isAuthenticated: boolean }) => handle(request, isAuthenticated),
     "req:getMethod": (request: Request) => request.method,

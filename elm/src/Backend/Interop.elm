@@ -1,4 +1,4 @@
-port module Backend.Interop exposing (Request, Resolver, Response, attemptTask, getCookie, getEnvironment, getLegacyResponse, getMethod, getResponse, getUrl, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError)
+port module Backend.Interop exposing (Request, Resolver, Response, attemptTask, getCookie, getEnvironment, getFileResponse, getLegacyResponse, getMethod, getResponse, getUrl, receiveRequests, receiveTaskProgress, sendResponse, sendTaskError)
 
 import ConcurrentTask
 import Json.Decode
@@ -123,6 +123,23 @@ getResponse { status, body } =
             Json.Encode.object
                 [ ( "status", Json.Encode.int status )
                 , ( "body", Json.Encode.string body )
+                ]
+        }
+
+
+getFileResponse { request, filename } =
+    ConcurrentTask.define
+        { function = "resp:file"
+        , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "request"
+                  , case request of
+                        Request jsRequest ->
+                            jsRequest
+                  )
+                , ( "filename", Json.Encode.string filename )
                 ]
         }
 

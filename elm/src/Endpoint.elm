@@ -1,5 +1,6 @@
 module Endpoint exposing
     ( Handlers
+    , addHandler
     , get
     , getHandler
     , handlers
@@ -22,7 +23,7 @@ type Available
 type Endpoint request response
     = Endpoint
         { method : String
-        , pathComponents : List String
+        , path : List String
         , request_ : request
         , response : response
         }
@@ -32,11 +33,11 @@ get =
     endpoint "GET"
 
 
-endpoint method pathComponents request_ response =
+endpoint method path request_ response =
     Endpoint
         { method = method
-        , pathComponents = pathComponents
-        , request_ = request_ method pathComponents
+        , path = path
+        , request_ = request_ method path
         , response = response
         }
 
@@ -56,8 +57,15 @@ handlers fallback =
     Handlers { fallback = fallback, registered = Dict.empty }
 
 
-getHandler method pathSegments (Handlers { fallback, registered }) =
-    Dict.get (method :: pathSegments) registered
+addHandler (Endpoint { method, path, response }) handler (Handlers handlers_) =
+    Handlers
+        { handlers_
+            | registered = Dict.insert (method :: path) (response handler) handlers_.registered
+        }
+
+
+getHandler method path (Handlers { fallback, registered }) =
+    Dict.get (method :: path) registered
         |> Maybe.withDefault fallback
 
 

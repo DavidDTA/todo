@@ -104,18 +104,39 @@ endpoints =
         )
         |> Endpoint.mapHandlers
             (\handler request ->
-                ConcurrentTask.map2
-                    (\envToken cookieToken ->
-                        if envToken == cookieToken then
-                            Just UniversalAuthentication
-
-                        else
-                            Nothing
-                    )
-                    (Backend.Interop.getEnvironment consts.env.token)
-                    (Backend.Interop.getCookie consts.cookie.token request)
+                getAuthentication request
                     |> ConcurrentTask.andThen (\auth -> handler auth request)
             )
+        |> Endpoint.addHandler Api.home
+            (\request ->
+                getAuthentication request
+                    |> ConcurrentTask.andThen
+                        (\auth ->
+                            Backend.Interop.getFileResponse
+                                { request = request
+                                , filename =
+                                    case auth of
+                                        Nothing ->
+                                            "index-unauthenticated.html"
+
+                                        Just UniversalAuthentication ->
+                                            "index-authenticated.html"
+                                }
+                        )
+            )
+
+
+getAuthentication request =
+    ConcurrentTask.map2
+        (\envToken cookieToken ->
+            if envToken == cookieToken then
+                Just UniversalAuthentication
+
+            else
+                Nothing
+        )
+        (Backend.Interop.getEnvironment consts.env.token)
+        (Backend.Interop.getCookie consts.cookie.token request)
 
 
 badRequest =

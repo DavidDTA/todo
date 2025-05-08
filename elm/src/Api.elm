@@ -28,10 +28,6 @@ type alias Waypoint =
     }
 
 
-waypointIdToRaw (WaypointId raw) =
-    raw
-
-
 home =
     Endpoint.get [ "" ] (\_ _ -> never) identity
 
@@ -106,4 +102,4 @@ jsonRequest decoder method pathSegments tag =
 
 
 waypointIdKeyDict =
-    KeyDict.define WaypointId waypointIdToRaw
+    KeyDict.define WaypointId (\(WaypointId id) -> id)

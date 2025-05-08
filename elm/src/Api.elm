@@ -28,10 +28,6 @@ type alias Waypoint =
     }
 
 
-waypointIdFromRaw =
-    WaypointId
-
-
 waypointIdToRaw (WaypointId raw) =
     raw
 
@@ -66,7 +62,7 @@ waypoints =
 
 
 decodePriorities =
-    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map waypointIdFromRaw Json.Decode.string))
+    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string))
 
 
 decodeWaypoints =
@@ -74,13 +70,13 @@ decodeWaypoints =
         "waypoints"
         (Json.Decode.list
             (Json.Decode.map6
-                (\id text completed url requires requiredBy -> ( waypointIdFromRaw id, Waypoint text completed url requires requiredBy ))
+                (\id text completed url requires requiredBy -> ( WaypointId id, Waypoint text completed url requires requiredBy ))
                 (Json.Decode.field "id" Json.Decode.string)
                 (Json.Decode.field "text" Json.Decode.string)
                 (Json.Decode.field "completed" Json.Decode.bool)
                 (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
-                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map waypointIdFromRaw Json.Decode.string)))
-                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map waypointIdFromRaw Json.Decode.string)))
+                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
+                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
             )
             |> Json.Decode.andThen
                 (\list ->
@@ -110,4 +106,4 @@ jsonRequest decoder method pathSegments tag =
 
 
 waypointIdKeyDict =
-    KeyDict.define waypointIdFromRaw waypointIdToRaw
+    KeyDict.define WaypointId waypointIdToRaw

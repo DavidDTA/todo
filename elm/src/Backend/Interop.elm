@@ -58,6 +58,14 @@ type Resolver
     = Resolver Json.Decode.Value
 
 
+type Error
+    = JsException
+        { message : String
+        , raw : Json.Decode.Value
+        }
+    | ResponseDecoderFailure Json.Decode.Error
+
+
 receiveRequests tag =
     requests
         (\{ request, resolver } -> tag { request = Request request, resolver = Resolver resolver })
@@ -93,7 +101,7 @@ attemptTask onComplete pool task =
 
 
 getEnvironment key =
-    ConcurrentTask.define
+    defineTask
         { function = "env:get"
         , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
         , errors = ConcurrentTask.expectNoErrors
@@ -102,7 +110,7 @@ getEnvironment key =
 
 
 getMethod (Request request) =
-    ConcurrentTask.define
+    defineTask
         { function = "req:getMethod"
         , expect = ConcurrentTask.expectJson Json.Decode.string
         , errors = ConcurrentTask.expectNoErrors
@@ -111,7 +119,7 @@ getMethod (Request request) =
 
 
 getUrl (Request request) =
-    ConcurrentTask.define
+    defineTask
         { function = "req:getUrl"
         , expect = ConcurrentTask.expectJson Json.Decode.string
         , errors = ConcurrentTask.expectNoErrors
@@ -120,7 +128,7 @@ getUrl (Request request) =
 
 
 getCookie key (Request request) =
-    ConcurrentTask.define
+    defineTask
         { function = "req:getCookie"
         , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
         , errors = ConcurrentTask.expectNoErrors
@@ -144,7 +152,7 @@ getResponse { status, body } =
 
 
 getFileResponse { request, filename } =
-    ConcurrentTask.define
+    defineTask
         { function = "resp:file"
         , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
         , errors = ConcurrentTask.expectNoErrors
@@ -161,9 +169,15 @@ getFileResponse { request, filename } =
 
 
 getLegacyResponse (Request request) =
-    ConcurrentTask.define
+    defineTask
         { function = "resp:legacy"
         , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
         , errors = ConcurrentTask.expectNoErrors
         , args = request
         }
+
+
+defineTask definition =
+    ConcurrentTask.define definition
+        |> ConcurrentTask.onJsException (\e -> ConcurrentTask.fail (JsException e))
+        |> ConcurrentTask.onResponseDecoderFailure (\e -> ConcurrentTask.fail (ResponseDecoderFailure e))

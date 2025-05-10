@@ -83,7 +83,9 @@ update msg model =
                         )
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
-                        |> ConcurrentTask.andThen (ConcurrentTask.map (\response -> { resolver = resolver, response = response }))
+                        |> ConcurrentTask.andThen identity
+                        |> ConcurrentTask.onError (\_ -> internalServerError)
+                        |> ConcurrentTask.map (\response -> { resolver = resolver, response = response })
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
             ( { model | taskPool = pool }, cmd )
@@ -154,6 +156,10 @@ badRequest =
 
 forbidden =
     Backend.Interop.getResponse { status = 403, body = "" }
+
+
+internalServerError =
+    Backend.Interop.getResponse { status = 500, body = "" }
 
 
 consts =

@@ -48,7 +48,7 @@ update msg model =
             never error
 
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
-            ( model, Backend.Interop.sendTaskError "" )
+            ( model, Backend.Interop.sendError "" )
 
         TaskCompleted (ConcurrentTask.Success { response, resolver }) ->
             ( model, Backend.Interop.sendResponse response resolver )

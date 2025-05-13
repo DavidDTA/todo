@@ -12,8 +12,8 @@ port module Backend.Interop exposing
     , getUrl
     , receiveRequests
     , receiveTaskProgress
+    , sendError
     , sendResponse
-    , sendTaskError
     )
 
 import ConcurrentTask
@@ -43,7 +43,7 @@ port taskRequests : Json.Decode.Value -> Cmd msg
 port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 
 
-port taskErrors : String -> Cmd msg
+port errors : String -> Cmd msg
 
 
 type Request
@@ -78,8 +78,8 @@ sendResponse (Response response) (Resolver resolver) =
         }
 
 
-sendTaskError =
-    taskErrors
+sendError =
+    errors
 
 
 receiveTaskProgress onProgress pool =

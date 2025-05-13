@@ -125,7 +125,7 @@ app.ports.responses.subscribe(({ response, resolver }) => {
   resolver(response)
 });
 
-app.ports.taskErrors.subscribe((message) => {
+app.ports.errors.subscribe((message) => {
   throw new Error(message)
 });
 

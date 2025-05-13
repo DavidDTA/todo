@@ -121,7 +121,10 @@ ConcurrentTask.register({
   },
 });
 
-app.ports.responses.subscribe(({ response, resolver }) => {
+app.ports.responses.subscribe(({ response, resolver, message }) => {
+  if (message !== null) {
+    console.log(message)
+  }
   resolver(response)
 });
 

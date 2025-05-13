@@ -1,5 +1,6 @@
 port module Backend.Interop exposing
-    ( Request
+    ( Error(..)
+    , Request
     , Resolver
     , Response
     , attemptTask
@@ -33,6 +34,7 @@ port requests :
 port responses :
     { response : Json.Decode.Value
     , resolver : Json.Decode.Value
+    , message : Maybe String
     }
     -> Cmd msg
 
@@ -71,10 +73,11 @@ receiveRequests tag =
         (\{ request, resolver } -> tag { request = Request request, resolver = Resolver resolver })
 
 
-sendResponse (Response response) (Resolver resolver) =
+sendResponse (Response response) (Resolver resolver) message =
     responses
         { response = response
         , resolver = resolver
+        , message = message
         }
 
 

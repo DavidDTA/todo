@@ -11,14 +11,7 @@ import Url
 
 
 type alias Model =
-    { taskPool :
-        ConcurrentTask.Pool
-            Msg
-            Never
-            { response : Backend.Interop.Response
-            , resolver : Backend.Interop.Resolver
-            , message : Maybe String
-            }
+    { taskPool : ConcurrentTask.Pool Msg Backend.Interop.Error ()
     }
 
 
@@ -28,23 +21,10 @@ type Msg
         , resolver : Backend.Interop.Resolver
         }
     | TaskProgress
-        ( ConcurrentTask.Pool
-            Msg
-            Never
-            { response : Backend.Interop.Response
-            , resolver : Backend.Interop.Resolver
-            , message : Maybe String
-            }
+        ( ConcurrentTask.Pool Msg Backend.Interop.Error ()
         , Cmd Msg
         )
-    | TaskCompleted
-        (ConcurrentTask.Response
-            Never
-            { response : Backend.Interop.Response
-            , resolver : Backend.Interop.Resolver
-            , message : Maybe String
-            }
-        )
+    | TaskCompleted (ConcurrentTask.Response Backend.Interop.Error ())
 
 
 type Authentication
@@ -70,13 +50,13 @@ update msg model =
             ( { model | taskPool = pool }, cmd )
 
         TaskCompleted (ConcurrentTask.Error error) ->
-            never error
+            ( model, Backend.Interop.sendError (expectedErrorToString error) )
 
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
-            ( model, Backend.Interop.sendError "" )
+            ( model, Backend.Interop.sendError (unexpectedErrorToString error) )
 
-        TaskCompleted (ConcurrentTask.Success { response, resolver, message }) ->
-            ( model, Backend.Interop.sendResponse response resolver message )
+        TaskCompleted (ConcurrentTask.Success ()) ->
+            ( model, Cmd.none )
 
         NewRequest { request, resolver } ->
             let
@@ -109,19 +89,12 @@ update msg model =
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
                         |> ConcurrentTask.andThen identity
-                        |> ConcurrentTask.map (\response -> { response = response, message = Nothing })
                         |> ConcurrentTask.onError
                             (\error ->
-                                internalServerError
-                                    |> ConcurrentTask.map
-                                        (\response ->
-                                            { response = response
-                                            , message =
-                                                Just (errorToString error)
-                                            }
-                                        )
+                                Backend.Interop.logError (expectedErrorToString error)
+                                    |> ConcurrentTask.andThenDo internalServerError
                             )
-                        |> ConcurrentTask.map (\{ response, message } -> { resolver = resolver, response = response, message = message })
+                        |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
             ( { model | taskPool = pool }, cmd )
@@ -135,7 +108,7 @@ subscriptions model =
         ]
 
 
-errorToString error =
+expectedErrorToString error =
     case error of
         Backend.Interop.JsException { message } ->
             message
@@ -145,8 +118,12 @@ errorToString error =
 
         Backend.Interop.MultipleErrors errors ->
             errors
-                |> List.map errorToString
+                |> List.map expectedErrorToString
                 |> String.join "\n"
+
+
+unexpectedErrorToString _ =
+    "unexpected error"
 
 
 endpoints =

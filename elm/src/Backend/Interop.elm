@@ -13,10 +13,11 @@ port module Backend.Interop exposing
     , getResponse
     , getUrl
     , kvGet
+    , logError
     , receiveRequests
     , receiveTaskProgress
+    , resolveRequest
     , sendError
-    , sendResponse
     , withKv
     )
 
@@ -32,14 +33,6 @@ port requests :
      -> msg
     )
     -> Sub msg
-
-
-port responses :
-    { response : Json.Decode.Value
-    , resolver : Json.Decode.Value
-    , message : Maybe String
-    }
-    -> Cmd msg
 
 
 port taskRequests : Json.Decode.Value -> Cmd msg
@@ -81,14 +74,6 @@ receiveRequests tag =
         (\{ request, resolver } -> tag { request = Request request, resolver = Resolver resolver })
 
 
-sendResponse (Response response) (Resolver resolver) message =
-    responses
-        { response = response
-        , resolver = resolver
-        , message = message
-        }
-
-
 sendError =
     errors
 
@@ -117,6 +102,15 @@ getEnvironment key =
         , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
         , errors = ConcurrentTask.expectNoErrors
         , args = Json.Encode.string key
+        }
+
+
+logError message =
+    defineTask
+        { function = "log:error"
+        , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args = Json.Encode.string message
         }
 
 
@@ -208,8 +202,21 @@ getCookie key (Request request) =
         }
 
 
+resolveRequest (Resolver resolver) (Response response) =
+    defineTask
+        { function = "req:resolve"
+        , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "resolver", resolver )
+                , ( "response", response )
+                ]
+        }
+
+
 getResponse { status, body } =
-    ConcurrentTask.define
+    defineTask
         { function = "resp:get"
         , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
         , errors = ConcurrentTask.expectNoErrors

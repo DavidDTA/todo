@@ -12,10 +12,9 @@ export const Elm: {
       init: () => {
         ports: {
           requests: portToElm<{ request: Request, resolver: resolver }>,
-          responses: portFromElm<{ response: Response, resolver: resolver, message: string | null }>,
           taskRequests: portFromElm<any>,
           taskResponses: portToElm<any>,
-          errors: portFromElm<any>,
+          errors: portFromElm<string>,
         }
       }
     }

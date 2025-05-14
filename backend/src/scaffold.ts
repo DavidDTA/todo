@@ -106,9 +106,11 @@ ConcurrentTask.register({
     "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
+    "log:error": console.error,
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
+    "req:resolve": ({ resolver, response }: { resolver: (_: Response) => void, response: Response}) => resolver(response),
     "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
     "resp:get": ({ status, body }: { status: number, body: string }) => new Response(body, { status }),
     "resp:legacy": handle,
@@ -117,13 +119,6 @@ ConcurrentTask.register({
     send: app.ports.taskRequests,
     receive: app.ports.taskResponses,
   },
-});
-
-app.ports.responses.subscribe(({ response, resolver, message }) => {
-  if (message !== null) {
-    console.log(message)
-  }
-  resolver(response)
 });
 
 app.ports.errors.subscribe((message) => {

@@ -1,5 +1,6 @@
 port module Backend.Interop exposing
     ( Error(..)
+    , Kv
     , Request
     , Resolver
     , Response
@@ -11,10 +12,12 @@ port module Backend.Interop exposing
     , getMethod
     , getResponse
     , getUrl
+    , kvGet
     , receiveRequests
     , receiveTaskProgress
     , sendError
     , sendResponse
+    , withKv
     )
 
 import ConcurrentTask
@@ -48,6 +51,10 @@ port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 port errors : String -> Cmd msg
 
 
+type Kv
+    = Kv Json.Decode.Value
+
+
 type Request
     = Request Json.Decode.Value
 
@@ -66,6 +73,7 @@ type Error
         , raw : Json.Decode.Value
         }
     | ResponseDecoderFailure Json.Decode.Error
+    | MultipleErrors (List Error)
 
 
 receiveRequests tag =
@@ -110,6 +118,65 @@ getEnvironment key =
         , errors = ConcurrentTask.expectNoErrors
         , args = Json.Encode.string key
         }
+
+
+closeKv (Kv kv) =
+    defineTask
+        { function = "kv:close"
+        , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args = kv
+        }
+
+
+kvGet (Kv kv) key decoder =
+    defineTask
+        { function = "kv:get"
+        , expect =
+            ConcurrentTask.expectJson
+                (Json.Decode.oneOf
+                    [ Json.Decode.field "versionstamp" (Json.Decode.null Nothing)
+                    , Json.Decode.map2 (\versionstamp value -> { versionstamp = versionstamp, value = value })
+                        (Json.Decode.field "versionstamp" Json.Decode.string)
+                        (Json.Decode.field "value" decoder)
+                        |> Json.Decode.map Just
+                    ]
+                )
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "kv", kv )
+                , ( "key", Json.Encode.list Json.Encode.string key )
+                ]
+        }
+
+
+openKv =
+    defineTask
+        { function = "kv:open"
+        , expect = ConcurrentTask.expectJson (Json.Decode.map Kv Json.Decode.value)
+        , errors = ConcurrentTask.expectNoErrors
+        , args = Json.Encode.null
+        }
+
+
+withKv task =
+    openKv
+        |> ConcurrentTask.andThen
+            (\kv ->
+                task kv
+                    |> ConcurrentTask.onError
+                        (\error ->
+                            closeKv kv
+                                |> ConcurrentTask.onError (\error2 -> ConcurrentTask.fail (MultipleErrors [ error, error2 ]))
+                                |> ConcurrentTask.andThen (\_ -> ConcurrentTask.fail error)
+                        )
+                    |> ConcurrentTask.andThen
+                        (\result ->
+                            closeKv kv
+                                |> ConcurrentTask.return result
+                        )
+            )
 
 
 getMethod (Request request) =

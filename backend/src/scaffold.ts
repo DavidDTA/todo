@@ -3,7 +3,7 @@ import { getCookies } from "@std/http";
 import { serveFile } from "@std/http/file-server";
 import * as ConcurrentTask from "@andrewmacmurray/elm-concurrent-task";
 import { setAuthentication } from "./auth.ts"
-import { getPriorities, updatePriorities } from "./priorities.ts"
+import { updatePriorities } from "./priorities.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 // @ts-types="./elm/main.d.ts"
 import { Elm } from "./elm/main.js"
@@ -51,11 +51,6 @@ async function handle(req: Request) {
     const headers = new Headers();
     setAuthentication(headers, body.data.token);
     return new Response(null, { headers });
-  } else if (req.method == "GET" && route_api_priorities) {
-    const kv = await Deno.openKv();
-    const priorities = await getPriorities(kv);
-    await kv.close()
-    return new Response(JSON.stringify(priorities));
   } else if (req.method == "PATCH" && route_api_priorities) {
     const body =
       z.object({
@@ -108,6 +103,9 @@ const app = Elm.Backend.Main.init();
 ConcurrentTask.register({
   tasks: {
     "env:get": (key: string) => Deno.env.get(key) ?? null,
+    "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
+    "kv:open": () => Deno.openKv(),
+    "kv:close": (kv: Deno.Kv) => kv.close(),
     "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
     "resp:get": ({ status, body }: { status: number, body: string }) => new Response(body, { status }),
     "resp:legacy": handle,

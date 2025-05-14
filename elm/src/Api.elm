@@ -6,11 +6,15 @@ module Api exposing
     , priorities
     , waypointIdKeyDict
     , waypoints
+    , wrapWaypointId
     )
 
+import Backend.Interop
+import ConcurrentTask
 import Endpoint
 import Http
 import Json.Decode
+import Json.Encode
 import KeyDict
 import Url
 
@@ -26,6 +30,10 @@ type alias Waypoint =
     , requires : List WaypointId
     , requiredBy : List WaypointId
     }
+
+
+wrapWaypointId =
+    WaypointId
 
 
 home =
@@ -47,7 +55,7 @@ priorities =
     Endpoint.get
         (apiBase ++ [ "priorities" ])
         (jsonRequest decodePriorities)
-        never
+        (jsonResponse encodePriorities)
 
 
 waypoints =
@@ -59,6 +67,14 @@ waypoints =
 
 decodePriorities =
     Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string))
+
+
+encodePriorities priorities_ =
+    Json.Encode.object
+        [ ( "priorities"
+          , Json.Encode.list (\(WaypointId id) -> Json.Encode.string id) priorities_
+          )
+        ]
 
 
 decodeWaypoints =
@@ -99,6 +115,22 @@ jsonRequest decoder method pathSegments tag =
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+jsonResponse encoder task auth request =
+    task auth
+        |> ConcurrentTask.andThen
+            (\result ->
+                case result of
+                    Ok value ->
+                        Backend.Interop.getResponse
+                            { status = 200
+                            , body = Json.Encode.encode 0 (encoder value)
+                            }
+
+                    Err failure ->
+                        failure
+            )
 
 
 waypointIdKeyDict =

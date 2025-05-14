@@ -9,11 +9,6 @@ const kvEntryParser =
     }),
   );
 
-export async function getPriorities(kv: Deno.Kv) {
-  const entry = await kv.get(["preferences"]);
-  return kvEntryParser.parse(entry.value);
-}
-
 export async function updatePriorities(
   kv: Deno.Kv,
   update: {

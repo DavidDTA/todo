@@ -2,6 +2,7 @@ module Backend.Main exposing (main)
 
 import Api
 import Backend.Interop
+import Backend.Storage
 import ConcurrentTask
 import Endpoint
 import Json.Decode
@@ -116,14 +117,7 @@ update msg model =
                                         (\response ->
                                             { response = response
                                             , message =
-                                                Just
-                                                    (case error of
-                                                        Backend.Interop.JsException { message } ->
-                                                            message
-
-                                                        Backend.Interop.ResponseDecoderFailure decoderError ->
-                                                            Json.Decode.errorToString decoderError
-                                                    )
+                                                Just (errorToString error)
                                             }
                                         )
                             )
@@ -141,11 +135,33 @@ subscriptions model =
         ]
 
 
+errorToString error =
+    case error of
+        Backend.Interop.JsException { message } ->
+            message
+
+        Backend.Interop.ResponseDecoderFailure decoderError ->
+            Json.Decode.errorToString decoderError
+
+        Backend.Interop.MultipleErrors errors ->
+            errors
+                |> List.map errorToString
+                |> String.join "\n"
+
+
 endpoints =
     Endpoint.handlers
         (\UniversalAuthentication ->
             Backend.Interop.getLegacyResponse
         )
+        |> Endpoint.addHandler Api.priorities
+            (\UniversalAuthentication ->
+                Backend.Interop.withKv
+                    (\kv ->
+                        Backend.Storage.getPriorities kv
+                            |> ConcurrentTask.map Ok
+                    )
+            )
         |> Endpoint.mapHandlers
             (\handler request ->
                 getAuthentication request

@@ -27,7 +27,10 @@
           {
             default =
               nixpkgs'.mkShell {
-                packages = builtins.attrValues myPkgs;
+                packages =
+                  builtins.attrValues myPkgs ++ [
+                  nixpkgs'.elmPackages.elm
+                ];
               };
             }
           );

@@ -8,25 +8,27 @@
     let
       systems = ["x86_64-linux" "aarch64-linux"];
     in
-      {
-        packages =
-          nixpkgs.lib.attrsets.genAttrs systems (system:
-            let
-              callPackage = nixpkgs.legacyPackages.${system}.newScope(miscellaneous.packages.${system} // self.outputs.packages.${system} ) ;
-            in
-              nixpkgs.lib.concatMapAttrs
-                ( filename: type:
+    {
+      devShells =
+        nixpkgs.lib.attrsets.genAttrs systems (system:
+          let
+            callPackage = nixpkgs.legacyPackages.${system}.newScope(miscellaneous.packages.${system} // allpkgs) ;
+            allpkgs =
+              nixpkgs.lib.attrsets.concatMapAttrs
+                (filename: type:
                   if type == "regular" && nixpkgs.lib.hasSuffix ".nix" filename then
-                    let
-                      packagename = nixpkgs.lib.removeSuffix ".nix" filename;
-                    in
-                      {
-                        ${packagename} = callPackage ./flake/packages/${filename} { };
-                      }
+                   { ${nixpkgs.lib.removeSuffix ".nix" filename} = callPackage ./flake/packages/${filename} { }; }
                   else
-                    { }
+                    {}
                 )
-                (builtins.readDir ./flake/packages)
+                (builtins.readDir ./flake/packages);
+          in
+          {
+            default =
+              nixpkgs.legacyPackages.${system}.mkShell {
+                packages = builtins.attrValues allpkgs;
+              };
+            }
           );
       };
 }

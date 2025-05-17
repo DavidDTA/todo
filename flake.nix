@@ -12,8 +12,9 @@
       devShells =
         nixpkgs.lib.attrsets.genAttrs systems (system:
           let
-            callPackage = nixpkgs.legacyPackages.${system}.newScope(miscellaneous.packages.${system} // allpkgs) ;
-            allpkgs =
+            nixpkgs' = nixpkgs.legacyPackages.${system};
+            callPackage = nixpkgs'.newScope(miscellaneous.packages.${system} // myPkgs) ;
+            myPkgs =
               nixpkgs.lib.attrsets.concatMapAttrs
                 (filename: type:
                   if type == "regular" && nixpkgs.lib.hasSuffix ".nix" filename then
@@ -25,8 +26,8 @@
           in
           {
             default =
-              nixpkgs.legacyPackages.${system}.mkShell {
-                packages = builtins.attrValues allpkgs;
+              nixpkgs'.mkShell {
+                packages = builtins.attrValues myPkgs;
               };
             }
           );

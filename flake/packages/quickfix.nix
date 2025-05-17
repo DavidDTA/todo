@@ -1,0 +1,39 @@
+{ bash, elmPackages, jq, writeScriptBin }:
+  writeScriptBin "quickfix" ''
+    #! ${bash}/bin/bash
+    set -e
+    (cd elm && {
+      ${elmPackages.elm}/bin/elm make src/Frontend/Login.elm --report=json --output=/dev/null >/dev/null
+      ${elmPackages.elm}/bin/elm make src/Frontend/Main.elm --report=json --output=/dev/null >/dev/null
+      ${elmPackages.elm}/bin/elm make src/Backend/Main.elm --report=json --output=/dev/null >/dev/null
+    }) 2>&1 >/dev/null |
+      ${jq}/bin/jq --raw-output '
+        .errors[] |
+        .path as $path |
+        .name as $module |
+        .problems[] |
+        $path +
+        ":" +
+        $module +
+        ":" +
+        (.region.start.line | tostring) +
+        ":" +
+        (.region.start.column | tostring) +
+        ":" +
+        (.region.end.line | tostring) +
+        ":" +
+        (.region.end.column | tostring) +
+        ":" +
+        .title +
+        "\n" +
+        (
+          .message |
+          map(
+            if type == "string" then .
+            else .string
+            end
+          ) |
+          join("")
+        )
+      '
+  ''

@@ -3,16 +3,20 @@ module Ui exposing
     , append
     , conflict
     , empty
+    , global
     , heading
+    , input
     , link
     , list
     , primary
+    , scaffold
     , secondary
     , text
     , toHtml
     )
 
 import Css
+import Css.Global
 import Html.Events.Extra.Pointer
 import Html.Styled
 import Html.Styled.Attributes
@@ -112,3 +116,51 @@ link url =
         ]
         |> List.singleton
         |> Flow
+
+
+global =
+    Flow
+        [ Css.Global.global
+            [ Css.Global.body
+                [ Css.height (Css.pct 100) ]
+            , Css.Global.html
+                [ Css.height (Css.pct 100) ]
+            ]
+        ]
+
+
+scaffold (Flow main) (Flow bottom) =
+    Flow
+        [ Html.Styled.div
+            [ Html.Styled.Attributes.css
+                [ Css.height (Css.pct 100)
+                , Css.display Css.flex_
+                , Css.flexDirection Css.column
+                , Css.width (Css.pct 100)
+                ]
+            ]
+            [ Html.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.flexGrow (Css.num 1)
+                    , Css.flexBasis Css.zero
+                    , Css.overflow Css.auto
+                    ]
+                ]
+                main
+            , Html.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.height (Css.px 48)
+                    ]
+                ]
+                bottom
+            ]
+        ]
+
+
+input { onInput } =
+    Flow
+        [ Html.Styled.input
+            [ Html.Styled.Events.onInput onInput
+            ]
+            []
+        ]

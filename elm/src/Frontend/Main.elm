@@ -33,6 +33,7 @@ type RemoteData
 
 type alias Model =
     { data : RemoteData
+    , input : String
     , selected : Maybe Api.WaypointId
     }
 
@@ -40,6 +41,7 @@ type alias Model =
 type Msg
     = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
     | InitPriorities (Result Http.Error (List Api.WaypointId))
+    | InputUpdate String
     | Select (Maybe Api.WaypointId)
 
 
@@ -55,6 +57,7 @@ main =
 init : () -> ( Model, Cmd Msg )
 init flags =
     ( { data = Loading { priorities = Nothing, waypoints = Nothing }
+      , input = ""
       , selected = Nothing
       }
     , Cmd.batch
@@ -85,6 +88,13 @@ update msg model =
                         (\value loading -> { loading | waypoints = value })
                         result
                         model.data
+              }
+            , Cmd.none
+            )
+
+        InputUpdate input ->
+            ( { model
+                | input = input
               }
             , Cmd.none
             )
@@ -250,21 +260,50 @@ view : Model -> Browser.Document Msg
 view model =
     { title = Strings.title.main
     , body =
-        (case model.data of
-            Data data ->
-                viewWaypoints model.selected data
+        Ui.global
+            |> Ui.append
+                (case model.data of
+                    Data data ->
+                        Ui.scaffold
+                            (viewWaypoints model data)
+                            (Ui.input { onInput = InputUpdate })
 
-            Error ->
-                Ui.alert Strings.error
+                    Error ->
+                        Ui.alert Strings.error
 
-            Loading _ ->
-                Ui.empty
-        )
+                    Loading _ ->
+                        Ui.empty
+                )
             |> Ui.toHtml
     }
 
 
-viewWaypoints selected { priorities, sccNodeIds, graph, waypoints } =
+globalFilter input waypoint =
+    let
+        words =
+            String.words input
+                |> List.map String.toLower
+
+        text =
+            waypoint
+                |> Maybe.map .text
+                |> Maybe.withDefault ""
+                |> String.toLower
+
+        url =
+            waypoint
+                |> Maybe.andThen .url
+                |> Maybe.withDefault ""
+                |> String.toLower
+    in
+    words
+        |> List.all
+            (\word ->
+                String.contains word text || String.contains word url
+            )
+
+
+viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
     let
         selectedSeeds =
             graph
@@ -310,7 +349,7 @@ viewWaypoints selected { priorities, sccNodeIds, graph, waypoints } =
             |> List.concatMap
                 (\scc ->
                     Graph.dfs (Graph.onDiscovery (.node >> .label >> (::))) [] scc
-                        |> List.map
+                        |> List.filterMap
                             (\id ->
                                 let
                                     highlight =
@@ -325,25 +364,38 @@ viewWaypoints selected { priorities, sccNodeIds, graph, waypoints } =
 
                                         else
                                             Nothing
-                                in
-                                case Api.waypointIdKeyDict .get id waypoints of
-                                    Just waypoint ->
-                                        viewWaypointRow
-                                            { text = waypoint.text
-                                            , completed = waypoint.completed
-                                            , highlight = highlight
-                                            , id = id
-                                            , url = waypoint.url
-                                            }
 
-                                    Nothing ->
-                                        viewWaypointRowPrimitive
-                                            { text = Strings.unknownWaypoint
-                                            , icon = "﹖"
-                                            , id = id
-                                            , highlight = highlight
-                                            , url = Nothing
-                                            }
+                                    maybeWaypoint =
+                                        Api.waypointIdKeyDict .get id waypoints
+
+                                    passesFilter =
+                                        maybeWaypoint
+                                            |> globalFilter input
+                                in
+                                if passesFilter then
+                                    Just
+                                        (case maybeWaypoint of
+                                            Just waypoint ->
+                                                viewWaypointRow
+                                                    { text = waypoint.text
+                                                    , completed = waypoint.completed
+                                                    , highlight = highlight
+                                                    , id = id
+                                                    , url = waypoint.url
+                                                    }
+
+                                            Nothing ->
+                                                viewWaypointRowPrimitive
+                                                    { text = Strings.unknownWaypoint
+                                                    , icon = "﹖"
+                                                    , id = id
+                                                    , highlight = highlight
+                                                    , url = Nothing
+                                                    }
+                                        )
+
+                                else
+                                    Nothing
                             )
                 )
         )

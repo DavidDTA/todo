@@ -38,8 +38,8 @@ type RemoteData
 
 
 type alias Model =
-    { selected : Maybe Api.WaypointId
-    , data : RemoteData
+    { data : RemoteData
+    , selected : Maybe Api.WaypointId
     }
 
 
@@ -60,8 +60,8 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init flags =
-    ( { selected = Nothing
-      , data = Loading { priorities = Nothing, waypoints = Nothing }
+    ( { data = Loading { priorities = Nothing, waypoints = Nothing }
+      , selected = Nothing
       }
     , Cmd.batch
         [ Endpoint.request Api.waypoints InitWaypoints

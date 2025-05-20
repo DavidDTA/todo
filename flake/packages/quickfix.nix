@@ -1,7 +1,7 @@
 { bash, elmPackages, jq, writeScriptBin }:
   writeScriptBin "quickfix" ''
     #! ${bash}/bin/bash
-    set -e
+    set -eEuo pipefail
     (cd elm && {
       ${elmPackages.elm}/bin/elm make src/Frontend/Login.elm --report=json --output=/dev/null >/dev/null
       ${elmPackages.elm}/bin/elm make src/Frontend/Main.elm --report=json --output=/dev/null >/dev/null

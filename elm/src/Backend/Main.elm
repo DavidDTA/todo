@@ -1,9 +1,11 @@
 module Backend.Main exposing (main)
 
 import Api
+import Backend.Id
 import Backend.Interop
 import Backend.Storage
 import ConcurrentTask
+import ConcurrentTask.Random
 import Endpoint
 import Json.Decode
 import Json.Encode
@@ -170,6 +172,34 @@ handlers =
                     Backend.Storage.getPriorities kv
                 )
             )
+        |> Endpoint.addHandler Api.addWaypoint
+            (\{ text } ->
+                Backend.Interop.withKv
+                    (\kv ->
+                        transact kv
+                            (\op ->
+                                Backend.Id.generate Api.WaypointId
+                                    |> ConcurrentTask.andThen
+                                        (\id ->
+                                            Backend.Storage.addWaypoint op
+                                                id
+                                                { text = text
+                                                }
+                                                |> ConcurrentTask.return
+                                                    { id = id
+                                                    , waypoint =
+                                                        { completed = False
+                                                        , requiredBy = []
+                                                        , requires = []
+                                                        , text = text
+                                                        , url = Nothing
+                                                        }
+                                                    }
+                                        )
+                            )
+                            |> ConcurrentTask.map .result
+                    )
+            )
         |> Endpoint.mapHandlers
             (\handler request ->
                 getAuthentication request
@@ -214,6 +244,27 @@ getAuthentication request =
         )
         (Backend.Interop.getEnvironment consts.env.token)
         (Backend.Interop.getCookie consts.cookie.token request)
+
+
+transact kv transaction =
+    Backend.Interop.kvAtomic kv
+        |> ConcurrentTask.andThen
+            (\op ->
+                transaction op
+                    |> ConcurrentTask.andThen
+                        (\result ->
+                            Backend.Interop.atomicOpCommit op
+                                |> ConcurrentTask.andThen
+                                    (\commitResult ->
+                                        case commitResult of
+                                            Ok versionstamp ->
+                                                ConcurrentTask.succeed { versionstamp = versionstamp, result = result }
+
+                                            Err () ->
+                                                transact kv transaction
+                                    )
+                        )
+            )
 
 
 consts =

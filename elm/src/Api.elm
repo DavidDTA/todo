@@ -1,6 +1,7 @@
 module Api exposing
     ( Waypoint
-    , WaypointId
+    , WaypointId(..)
+    , addWaypoint
     , badRequest
     , forbidden
     , home
@@ -82,6 +83,13 @@ waypoints =
         }
 
 
+addWaypoint =
+    post
+        (apiBase ++ [ "waypoints" ])
+        (jsonRequest decodeAddWaypointRequest encodeAddWaypointRequest)
+        (jsonResponse decodeAddWaypointResponse encodeAddWaypointResponse)
+
+
 decodePriorities =
     Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string))
 
@@ -94,19 +102,23 @@ encodePriorities priorities_ =
         ]
 
 
+decodeWaypoint =
+    Json.Decode.map6
+        (\id text completed url requires requiredBy -> { id = WaypointId id, waypoint = Waypoint text completed url requires requiredBy })
+        (Json.Decode.field "id" Json.Decode.string)
+        (Json.Decode.field "text" Json.Decode.string)
+        (Json.Decode.field "completed" Json.Decode.bool)
+        (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
+        (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
+        (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
+
+
 decodeWaypoints =
     Json.Decode.field
         "waypoints"
-        (Json.Decode.list
-            (Json.Decode.map6
-                (\id text completed url requires requiredBy -> ( WaypointId id, Waypoint text completed url requires requiredBy ))
-                (Json.Decode.field "id" Json.Decode.string)
-                (Json.Decode.field "text" Json.Decode.string)
-                (Json.Decode.field "completed" Json.Decode.bool)
-                (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
-                (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
-                (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
-            )
+        (decodeWaypoint
+            |> Json.Decode.map (\{ id, waypoint } -> ( id, waypoint ))
+            |> Json.Decode.list
             |> Json.Decode.andThen
                 (\list ->
                     let
@@ -120,6 +132,42 @@ decodeWaypoints =
                         Json.Decode.fail "Duplicate id"
                 )
         )
+
+
+encodeAddWaypointRequest { text } =
+    Json.Encode.object
+        [ ( "text", Json.Encode.string text )
+        ]
+
+
+decodeAddWaypointRequest =
+    Json.Decode.field "text" Json.Decode.string
+        |> Json.Decode.map (\text -> { text = text })
+
+
+encodeAddWaypointResponse { id, waypoint } =
+    encodeWaypoint id waypoint
+
+
+decodeAddWaypointResponse =
+    decodeWaypoint
+
+
+encodeWaypoint (WaypointId id) { text, completed, url, requires, requiredBy } =
+    Json.Encode.object
+        [ ( "id", Json.Encode.string id )
+        , ( "text", Json.Encode.string text )
+        , ( "completed", Json.Encode.bool completed )
+        , ( "url", Maybe.Extra.unwrap Json.Encode.null Json.Encode.string url )
+        , ( "requires"
+          , requires
+                |> Json.Encode.list (\(WaypointId requiresId) -> Json.Encode.string requiresId)
+          )
+        , ( "requiredBy"
+          , requiredBy
+                |> Json.Encode.list (\(WaypointId requiresId) -> Json.Encode.string requiresId)
+          )
+        ]
 
 
 emptyRequest =
@@ -142,6 +190,40 @@ emptyRequest =
 opaqueRequest =
     { applyBody = identity
     , handleBody = \task request handleResult -> handleResult (task request) request
+    }
+
+
+jsonRequest :
+    Json.Decode.Decoder r
+    -> (r -> Json.Encode.Value)
+    ->
+        { applyBody :
+            (String -> List String -> Http.Body -> (Result Http.Error t -> msg) -> Cmd msg)
+            -> String
+            -> List String
+            -> r
+            -> (Result Http.Error t -> msg)
+            -> Cmd msg
+        , handleBody :
+            (r -> impl2)
+            -> Backend.Interop.Request
+            -> (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response)
+            -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+jsonRequest decoder encoder =
+    { applyBody = \fn method path value -> fn method path (Http.jsonBody (encoder value))
+    , handleBody =
+        \task request handleResult ->
+            Backend.Interop.getBody request
+                |> ConcurrentTask.andThen
+                    (\body ->
+                        case Json.Decode.decodeString decoder body of
+                            Ok value ->
+                                handleResult (task value) request
+
+                            Err _ ->
+                                badRequest
+                    )
     }
 
 

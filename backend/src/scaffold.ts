@@ -2,11 +2,20 @@ import * as z from "@npm/zod";
 import { getCookies } from "@std/http";
 import { serveFile } from "@std/http/file-server";
 import * as ConcurrentTask from "@andrewmacmurray/elm-concurrent-task";
+import { randomBytes } from "node:crypto"
 import { setAuthentication } from "./auth.ts"
 import { updatePriorities } from "./priorities.ts"
 import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
 // @ts-types="./elm/main.d.ts"
 import { Elm } from "./elm/main.js"
+
+// Deno cleverly implemented `then` on `AtomicOperation` to
+// throw an error that gives users a clearer error message
+// when it is used to resolve a promise. We know that it is
+// not a promise, and we want to be able to fulfill a promise
+// with the `AtomicOperation` itself, but the presence of a
+// `then` method causes the promise call that method instead
+delete (Deno.AtomicOperation.prototype as any).then
 
 function makeMatchRoute(url: string) {
   return function<T extends {[index:string]: string} = {}>(pattern: string) {
@@ -106,11 +115,16 @@ const app = Elm.Backend.Main.init();
 
 ConcurrentTask.register({
   tasks: {
+    "atomicOp:check": ({ atomicOp, key, versionstamp }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, versionstamp : string | null }) => atomicOp.check({ key, versionstamp }),
+    "atomicOp:commit": (atomicOp: Deno.AtomicOperation) => atomicOp.commit(),
+    "atomicOp:set": ({ atomicOp, key, value }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, value: any }) => atomicOp.set(key, value),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
+    "kv:atomic": (kv: Deno.Kv) => kv.atomic(),
     "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
     "log:error": ({ context, error }: { context: string, error: any }) => logError(context, error),
+    "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": (request: Request) => request.text(),
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,

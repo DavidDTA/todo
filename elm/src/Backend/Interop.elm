@@ -1,9 +1,13 @@
 port module Backend.Interop exposing
-    ( Error(..)
+    ( AtomicOperation
+    , Error(..)
     , Kv
     , Request
     , Resolver
     , Response
+    , atomicOpCheck
+    , atomicOpCommit
+    , atomicOpSet
     , attemptTask
     , getBody
     , getCookie
@@ -11,8 +15,10 @@ port module Backend.Interop exposing
     , getFileResponse
     , getLegacyResponse
     , getMethod
+    , getRandom
     , getResponse
     , getUrl
+    , kvAtomic
     , kvGet
     , logError
     , receiveRequests
@@ -25,6 +31,7 @@ port module Backend.Interop exposing
 import ConcurrentTask
 import Json.Decode
 import Json.Encode
+import Maybe.Extra
 
 
 port requests :
@@ -49,6 +56,10 @@ type Kv
     = Kv Json.Decode.Value
 
 
+type AtomicOperation
+    = AtomicOperation Json.Decode.Value
+
+
 type Request
     = Request Json.Decode.Value
 
@@ -59,6 +70,10 @@ type Response
 
 type Resolver
     = Resolver Json.Decode.Value
+
+
+type Versionstamp
+    = Versionstamp String
 
 
 type Error
@@ -123,10 +138,74 @@ logError { context, error } =
         }
 
 
+atomicOpCheck (AtomicOperation op) { key, versionstamp } =
+    defineTask
+        { function = "atomicOp:check"
+        , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "atomicOp", op )
+                , ( "key", Json.Encode.list Json.Encode.string key )
+                , ( "versionstamp"
+                  , Maybe.Extra.unwrap Json.Encode.null
+                        (\it ->
+                            case it of
+                                Versionstamp rawVersionstamp ->
+                                    Json.Encode.string rawVersionstamp
+                        )
+                        versionstamp
+                  )
+                ]
+        }
+
+
+atomicOpCommit (AtomicOperation op) =
+    defineTask
+        { function = "atomicOp:commit"
+        , expect =
+            Json.Decode.field "ok" Json.Decode.bool
+                |> Json.Decode.andThen
+                    (\ok ->
+                        if ok then
+                            Json.Decode.map (Versionstamp >> Ok) (Json.Decode.field "versionstamp" Json.Decode.string)
+
+                        else
+                            Json.Decode.succeed (Err ())
+                    )
+                |> ConcurrentTask.expectJson
+        , errors = ConcurrentTask.expectNoErrors
+        , args = op
+        }
+
+
+atomicOpSet (AtomicOperation op) { key, value } =
+    defineTask
+        { function = "atomicOp:set"
+        , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "atomicOp", op )
+                , ( "key", Json.Encode.list Json.Encode.string key )
+                , ( "value", value )
+                ]
+        }
+
+
 closeKv (Kv kv) =
     defineTask
         { function = "kv:close"
         , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args = kv
+        }
+
+
+kvAtomic (Kv kv) =
+    defineTask
+        { function = "kv:atomic"
+        , expect = ConcurrentTask.expectJson (Json.Decode.map AtomicOperation Json.Decode.value)
         , errors = ConcurrentTask.expectNoErrors
         , args = kv
         }
@@ -139,7 +218,7 @@ kvGet (Kv kv) key decoder =
             ConcurrentTask.expectJson
                 (Json.Decode.oneOf
                     [ Json.Decode.field "versionstamp" (Json.Decode.null Nothing)
-                    , Json.Decode.map2 (\versionstamp value -> { versionstamp = versionstamp, value = value })
+                    , Json.Decode.map2 (\versionstamp value -> { versionstamp = Versionstamp versionstamp, value = value })
                         (Json.Decode.field "versionstamp" Json.Decode.string)
                         (Json.Decode.field "value" decoder)
                         |> Json.Decode.map Just
@@ -180,6 +259,15 @@ withKv task =
                                 |> ConcurrentTask.return result
                         )
             )
+
+
+getRandom bytes =
+    defineTask
+        { function = "random:get"
+        , expect = ConcurrentTask.expectJson (Json.Decode.list Json.Decode.int)
+        , errors = ConcurrentTask.expectNoErrors
+        , args = Json.Encode.int bytes
+        }
 
 
 getMethod (Request request) =

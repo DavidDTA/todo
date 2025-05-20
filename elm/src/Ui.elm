@@ -1,6 +1,7 @@
 module Ui exposing
     ( alert
     , append
+    , button
     , conflict
     , empty
     , global
@@ -157,10 +158,24 @@ scaffold (Flow main) (Flow bottom) =
         ]
 
 
-input { onInput } =
+input params =
     Flow
         [ Html.Styled.input
-            [ Html.Styled.Events.onInput onInput
+            [ Html.Styled.Attributes.value params.text
+            , Html.Styled.Events.onInput params.onInput
             ]
             []
         ]
+
+
+button action text_ =
+    Html.Styled.form
+        [ Html.Styled.Events.onSubmit action
+        ]
+        [ Html.Styled.button
+            []
+            [ Html.Styled.text text_
+            ]
+        ]
+        |> List.singleton
+        |> Flow

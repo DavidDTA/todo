@@ -7,9 +7,6 @@ import Dict
 import Endpoint
 import Graph
 import Heap
-import Html.Events.Extra.Pointer
-import Html.Styled
-import Html.Styled.Attributes
 import Http
 import IntDict
 import Json.Decode
@@ -17,6 +14,7 @@ import KeyDict
 import List.Extra
 import Maybe.Extra
 import Strings
+import Ui
 
 
 type RemoteData
@@ -187,12 +185,6 @@ resolveData loading =
             Loading loading
 
 
-type WaypointRowHighlight
-    = NoHighlight
-    | Selected
-    | DescendantOrAncestor
-
-
 view : Model -> Browser.Document Msg
 view model =
     { title = Strings.title.main
@@ -207,42 +199,41 @@ view model =
                         viewWaypointsAcyclic model.selected data
 
             Error ->
-                [ Html.Styled.text Strings.error ]
+                Ui.alert Strings.error
 
             Loading _ ->
-                []
+                Ui.empty
         )
-            |> List.map Html.Styled.toUnstyled
+            |> Ui.toHtml
     }
 
 
 viewWaypointsCycle cycle waypoints =
-    [ Html.Styled.div [] [ Html.Styled.text Strings.cycleDetected ]
-    , Html.Styled.ul
-        []
-        (cycle
-            |> List.map
-                (\id ->
-                    let
-                        waypoint =
-                            Api.waypointIdKeyDict .get id waypoints
-                    in
-                    viewWaypointRowPrimitive
-                        { text =
-                            waypoint
-                                |> Maybe.map .text
-                                |> Maybe.withDefault
-                                    Strings.unknownWaypoint
-                        , icon = "↳"
-                        , id = id
-                        , highlight = NoHighlight
-                        , url =
-                            waypoint
-                                |> Maybe.andThen .url
-                        }
-                )
-        )
-    ]
+    Ui.heading Strings.cycleDetected
+        |> Ui.append
+            (cycle
+                |> List.map
+                    (\id ->
+                        let
+                            waypoint =
+                                Api.waypointIdKeyDict .get id waypoints
+                        in
+                        viewWaypointRowPrimitive
+                            { text =
+                                waypoint
+                                    |> Maybe.map .text
+                                    |> Maybe.withDefault
+                                        Strings.unknownWaypoint
+                            , icon = "↳"
+                            , id = id
+                            , highlight = Nothing
+                            , url =
+                                waypoint
+                                    |> Maybe.andThen .url
+                            }
+                    )
+                |> Ui.list
+            )
 
 
 viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
@@ -271,8 +262,7 @@ viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
                 graph
                 |> Tuple.first
     in
-    [ Html.Styled.ul
-        []
+    Ui.list
         (graph
             |> squeeze priorities nodeIds
             |> List.map
@@ -280,13 +270,13 @@ viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
                     let
                         highlight =
                             if Just id == selected then
-                                Selected
+                                Just Ui.primary
 
                             else if Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
-                                DescendantOrAncestor
+                                Just Ui.secondary
 
                             else
-                                NoHighlight
+                                Nothing
                     in
                     case Api.waypointIdKeyDict .get id waypoints of
                         Just waypoint ->
@@ -308,7 +298,6 @@ viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
                                 }
                 )
         )
-    ]
 
 
 
@@ -423,43 +412,22 @@ viewWaypointRow { completed, highlight, id, text, url } =
 
 
 viewWaypointRowPrimitive { highlight, icon, id, text, url } =
-    Html.Styled.li
-        [ Html.Styled.Attributes.css
-            [ Css.listStyleType
-                (Css.string (icon ++ " "))
-            , Css.backgroundColor
-                (case highlight of
-                    NoHighlight ->
-                        Css.unset
-
-                    Selected ->
-                        Css.rgb 255 255 128
-
-                    DescendantOrAncestor ->
-                        Css.rgb 160 160 255
-                )
-            ]
-        , Html.Events.Extra.Pointer.onEnter (always (Select (Just id)))
-            |> Html.Styled.Attributes.fromUnstyled
-        , Html.Events.Extra.Pointer.onLeave (always (Select Nothing))
-            |> Html.Styled.Attributes.fromUnstyled
-        ]
-        ([ Html.Styled.text text
-         ]
-            ++ (case url of
+    { bullet = icon
+    , highlight = highlight
+    , onEnter = Select (Just id)
+    , onExit = Select Nothing
+    , content =
+        Ui.text text
+            |> Ui.append
+                (case url of
                     Nothing ->
-                        []
+                        Ui.empty
 
                     Just justUrl ->
-                        [ Html.Styled.text " "
-                        , Html.Styled.a
-                            [ Html.Styled.Attributes.href justUrl
-                            ]
-                            [ Html.Styled.text "🔗"
-                            ]
-                        ]
-               )
-        )
+                        Ui.text " "
+                            |> Ui.append (Ui.link justUrl)
+                )
+    }
 
 
 subscriptions : Model -> Sub Msg

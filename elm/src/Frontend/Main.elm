@@ -25,13 +25,9 @@ type RemoteData
     | Error
     | Data
         { priorities : List Api.WaypointId
-        , nodeIds : KeyDict.KeyDict Api.WaypointId String Graph.NodeId
+        , sccNodeIds : KeyDict.KeyDict Api.WaypointId String Graph.NodeId
         , waypoints : KeyDict.KeyDict Api.WaypointId String Api.Waypoint
-        , graph : Graph.Graph Api.WaypointId ()
-        , acyclic :
-            Result
-                (List Api.WaypointId)
-                (Graph.AcyclicGraph Api.WaypointId ())
+        , graph : Graph.Graph (Graph.Graph Api.WaypointId ()) ()
         }
 
 
@@ -167,18 +163,75 @@ resolveData loading =
                             |> List.filterMap
                                 (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (Api.waypointIdKeyDict .get edge.from nodeIds) (Api.waypointIdKeyDict .get edge.to nodeIds))
                         )
+
+                stronglyConnectedComponents =
+                    case Graph.stronglyConnectedComponents graph of
+                        Ok _ ->
+                            graph
+                                |> Graph.nodeIds
+                                |> List.map (\nodeId -> Graph.inducedSubgraph [ nodeId ] graph)
+
+                        Err sccs ->
+                            sccs
+
+                nodeIdToSccNodeId =
+                    stronglyConnectedComponents
+                        |> List.indexedMap Tuple.pair
+                        |> List.foldl
+                            (\( sccNodeId, scc ) acc ->
+                                scc
+                                    |> Graph.nodeIds
+                                    |> List.foldl (\nodeId -> IntDict.insert nodeId sccNodeId) acc
+                            )
+                            IntDict.empty
+
+                sccNodeIds =
+                    nodeIds
+                        |> Api.waypointIdKeyDict .foldl
+                            (\waypointId nodeId acc ->
+                                case IntDict.get nodeId nodeIdToSccNodeId of
+                                    Nothing ->
+                                        acc
+
+                                    Just sccNodeId ->
+                                        Api.waypointIdKeyDict .insert waypointId sccNodeId acc
+                            )
+                            (Api.waypointIdKeyDict .empty)
+
+                sccGraph =
+                    Graph.fromNodeLabelsAndEdgePairs
+                        stronglyConnectedComponents
+                        (stronglyConnectedComponents
+                            |> List.indexedMap
+                                (\sccNodeId ->
+                                    Graph.fold
+                                        (\{ node } ->
+                                            Graph.get node.id graph
+                                                |> Maybe.map
+                                                    (\{ outgoing } ->
+                                                        outgoing
+                                                            |> IntDict.keys
+                                                            |> List.filterMap
+                                                                (\outNodeId ->
+                                                                    nodeIdToSccNodeId
+                                                                        |> IntDict.get outNodeId
+                                                                        |> Maybe.Extra.filter ((/=) sccNodeId)
+                                                                )
+                                                            |> List.map (Tuple.pair sccNodeId)
+                                                    )
+                                                |> Maybe.withDefault []
+                                                |> List.append
+                                        )
+                                        []
+                                )
+                            |> List.concat
+                        )
             in
             Data
-                { nodeIds = nodeIds
+                { sccNodeIds = sccNodeIds
                 , priorities = priorities
                 , waypoints = waypoints
-                , graph = graph
-                , acyclic =
-                    graph
-                        |> Graph.stronglyConnectedComponents
-                        |> Result.mapError
-                            (List.Extra.findMap extractCycleFromStronglyConnectedComponent)
-                        |> Result.mapError (Maybe.withDefault [])
+                , graph = sccGraph
                 }
 
         _ ->
@@ -191,12 +244,7 @@ view model =
     , body =
         (case model.data of
             Data data ->
-                case data.acyclic of
-                    Err cycle ->
-                        viewWaypointsCycle cycle data.waypoints
-
-                    Ok _ ->
-                        viewWaypointsAcyclic model.selected data
+                viewWaypoints model.selected data
 
             Error ->
                 Ui.alert Strings.error
@@ -208,47 +256,28 @@ view model =
     }
 
 
-viewWaypointsCycle cycle waypoints =
-    Ui.heading Strings.cycleDetected
-        |> Ui.append
-            (cycle
-                |> List.map
-                    (\id ->
-                        let
-                            waypoint =
-                                Api.waypointIdKeyDict .get id waypoints
-                        in
-                        viewWaypointRowPrimitive
-                            { text =
-                                waypoint
-                                    |> Maybe.map .text
-                                    |> Maybe.withDefault
-                                        Strings.unknownWaypoint
-                            , icon = "↳"
-                            , id = id
-                            , highlight = Nothing
-                            , url =
-                                waypoint
-                                    |> Maybe.andThen .url
-                            }
-                    )
-                |> Ui.list
-            )
-
-
-viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
+viewWaypoints selected { priorities, sccNodeIds, graph, waypoints } =
     let
-        seeds =
+        selectedSeeds =
             graph
                 |> Graph.nodes
-                |> List.filter (\{ label } -> Just label == selected)
+                |> List.filter
+                    (\n ->
+                        Graph.nodes n.label
+                            |> List.any (\{ label } -> Just label == selected)
+                    )
                 |> List.map .id
 
         transitiveRequires =
             Graph.guidedDfs
                 Graph.alongOutgoingEdges
-                (Graph.onDiscovery (\{ node } -> Api.waypointIdKeyDict .insert node.label ()))
-                seeds
+                (Graph.onDiscovery
+                    (\{ node } acc ->
+                        Graph.nodes node.label
+                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                    )
+                )
+                selectedSeeds
                 (Api.waypointIdKeyDict .empty)
                 graph
                 |> Tuple.first
@@ -256,65 +285,73 @@ viewWaypointsAcyclic selected { priorities, nodeIds, graph, waypoints } =
         transitiveRequiredBy =
             Graph.guidedDfs
                 Graph.alongIncomingEdges
-                (Graph.onDiscovery (\{ node } -> Api.waypointIdKeyDict .insert node.label ()))
-                seeds
+                (Graph.onDiscovery
+                    (\{ node } acc ->
+                        Graph.nodes node.label
+                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                    )
+                )
+                selectedSeeds
                 (Api.waypointIdKeyDict .empty)
                 graph
                 |> Tuple.first
     in
     Ui.list
         (graph
-            |> squeeze priorities nodeIds
-            |> List.map
-                (\id ->
-                    let
-                        highlight =
-                            if Just id == selected then
-                                Just Ui.primary
+            |> squeeze priorities sccNodeIds
+            |> List.concatMap
+                (\scc ->
+                    Graph.dfs (Graph.onDiscovery (.node >> .label >> (::))) [] scc
+                        |> List.map
+                            (\id ->
+                                let
+                                    highlight =
+                                        if Just id == selected then
+                                            Just Ui.primary
 
-                            else if Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
-                                Just Ui.secondary
+                                        else if Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
+                                            Just Ui.secondary
 
-                            else
-                                Nothing
-                    in
-                    case Api.waypointIdKeyDict .get id waypoints of
-                        Just waypoint ->
-                            viewWaypointRow
-                                { text = waypoint.text
-                                , completed = waypoint.completed
-                                , highlight = highlight
-                                , id = id
-                                , url = waypoint.url
-                                }
+                                        else if Graph.size scc > 1 then
+                                            Just Ui.conflict
 
-                        Nothing ->
-                            viewWaypointRowPrimitive
-                                { text = Strings.unknownWaypoint
-                                , icon = "﹖"
-                                , id = id
-                                , highlight = highlight
-                                , url = Nothing
-                                }
+                                        else
+                                            Nothing
+                                in
+                                case Api.waypointIdKeyDict .get id waypoints of
+                                    Just waypoint ->
+                                        viewWaypointRow
+                                            { text = waypoint.text
+                                            , completed = waypoint.completed
+                                            , highlight = highlight
+                                            , id = id
+                                            , url = waypoint.url
+                                            }
+
+                                    Nothing ->
+                                        viewWaypointRowPrimitive
+                                            { text = Strings.unknownWaypoint
+                                            , icon = "﹖"
+                                            , id = id
+                                            , highlight = highlight
+                                            , url = Nothing
+                                            }
+                            )
                 )
         )
 
 
-
-{- assumes graph is acyclic -}
-
-
-squeeze priorities nodeIds graph =
+squeeze priorities sccNodeIds graph =
     let
         nodePriorities =
             priorities
                 |> List.indexedMap
                     (\priorityIndex priorityWaypointId ->
-                        { transitiveNodeIds =
+                        { transitiveSccNodeIds =
                             Graph.guidedDfs
                                 Graph.alongOutgoingEdges
                                 ((\{ node } -> (::) node.id) |> Graph.onDiscovery)
-                                ([ Api.waypointIdKeyDict .get priorityWaypointId nodeIds ] |> List.filterMap identity)
+                                ([ Api.waypointIdKeyDict .get priorityWaypointId sccNodeIds ] |> List.filterMap identity)
                                 []
                                 graph
                                 |> Tuple.first
@@ -322,7 +359,7 @@ squeeze priorities nodeIds graph =
                         }
                     )
                 |> List.foldr
-                    (\{ priorityIndex, transitiveNodeIds } acc ->
+                    (\{ priorityIndex, transitiveSccNodeIds } acc ->
                         List.foldl
                             (\nodeId ->
                                 IntDict.update
@@ -330,7 +367,7 @@ squeeze priorities nodeIds graph =
                                     (Maybe.withDefault [] >> (::) (List.length priorities - priorityIndex) >> Just)
                             )
                             acc
-                            transitiveNodeIds
+                            transitiveSccNodeIds
                     )
                     IntDict.empty
 
@@ -433,28 +470,3 @@ viewWaypointRowPrimitive { highlight, icon, id, text, url } =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
-
-
-extractCycleFromStronglyConnectedComponent graph =
-    Graph.bfs
-        (\path _ acc ->
-            case ( acc, List.head path, List.Extra.last (Maybe.withDefault [] (List.tail path)) ) of
-                ( Just _, _, _ ) ->
-                    acc
-
-                ( _, Just current, Just root ) ->
-                    if IntDict.member root.node.id current.outgoing then
-                        path
-                            |> List.map .node
-                            |> List.map .label
-                            |> List.reverse
-                            |> Just
-
-                    else
-                        Nothing
-
-                _ ->
-                    Nothing
-        )
-        Nothing
-        graph

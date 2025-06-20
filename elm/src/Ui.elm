@@ -1,6 +1,7 @@
 module Ui exposing
     ( alert
     , append
+    , conflict
     , empty
     , heading
     , link
@@ -25,6 +26,7 @@ type Flow msg
 type Highlight
     = Primary
     | Secondary
+    | Conflict
 
 
 toHtml (Flow v) =
@@ -41,6 +43,10 @@ primary =
 
 secondary =
     Secondary
+
+
+conflict =
+    Conflict
 
 
 empty =
@@ -77,6 +83,9 @@ list items =
 
                                 Just Secondary ->
                                     Css.rgb 160 160 255
+
+                                Just Conflict ->
+                                    Css.rgb 255 160 160
                             )
                         ]
                     , Html.Events.Extra.Pointer.onEnter (always onEnter)

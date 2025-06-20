@@ -17,7 +17,3 @@ logIn =
 
 unknownWaypoint =
     "Unknown"
-
-
-cycleDetected =
-    "Cyclical requirement detected"

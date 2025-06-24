@@ -4,6 +4,7 @@ module Api exposing
     , home
     , login
     , priorities
+    , unwrapWaypointId
     , waypointIdKeyDict
     , waypoints
     , wrapWaypointId
@@ -34,6 +35,10 @@ type alias Waypoint =
 
 wrapWaypointId =
     WaypointId
+
+
+unwrapWaypointId (WaypointId s) =
+    s
 
 
 home =

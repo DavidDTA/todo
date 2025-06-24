@@ -238,6 +238,14 @@ resolveData loading =
             Loading loading
 
 
+graphToString =
+    Graph.toString (Api.unwrapWaypointId >> Just) (always Nothing)
+
+
+sccGraphToString =
+    Graph.toString (graphToString >> Just) (always Nothing)
+
+
 view : Model -> Browser.Document Msg
 view model =
     { title = Strings.title.main

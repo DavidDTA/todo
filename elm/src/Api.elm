@@ -42,7 +42,10 @@ unwrapWaypointId (WaypointId s) =
 
 
 home =
-    Endpoint.get [ "" ] (\_ _ -> never) identity
+    Endpoint.get [ "" ]
+        { request = \_ _ -> never
+        , response = identity
+        }
 
 
 apiBase =
@@ -52,22 +55,21 @@ apiBase =
 login =
     Endpoint.post
         (apiBase ++ [ "login" ])
-        (\_ _ -> never)
-        identity
+        { request = \_ _ -> never
+        , response = identity
+        }
 
 
 priorities =
     Endpoint.get
         (apiBase ++ [ "priorities" ])
-        (jsonRequest decodePriorities)
-        (jsonResponse encodePriorities)
+        (json decodePriorities encodePriorities)
 
 
 waypoints =
     Endpoint.get
         (apiBase ++ [ "waypoints" ])
-        (jsonRequest decodeWaypoints)
-        never
+        (json decodeWaypoints never)
 
 
 decodePriorities =
@@ -110,32 +112,34 @@ decodeWaypoints =
         )
 
 
-jsonRequest decoder method pathSegments tag =
-    Http.request
-        { method = method
-        , headers = []
-        , url = "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)
-        , body = Http.emptyBody
-        , expect = Http.expectJson tag decoder
-        , timeout = Nothing
-        , tracker = Nothing
-        }
+json decoder encoder =
+    { request =
+        \method pathSegments tag ->
+            Http.request
+                { method = method
+                , headers = []
+                , url = "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)
+                , body = Http.emptyBody
+                , expect = Http.expectJson tag decoder
+                , timeout = Nothing
+                , tracker = Nothing
+                }
+    , response =
+        \task auth request ->
+            task auth
+                |> ConcurrentTask.andThen
+                    (\result ->
+                        case result of
+                            Ok value ->
+                                Backend.Interop.getResponse
+                                    { status = 200
+                                    , body = Json.Encode.encode 0 (encoder value)
+                                    }
 
-
-jsonResponse encoder task auth request =
-    task auth
-        |> ConcurrentTask.andThen
-            (\result ->
-                case result of
-                    Ok value ->
-                        Backend.Interop.getResponse
-                            { status = 200
-                            , body = Json.Encode.encode 0 (encoder value)
-                            }
-
-                    Err failure ->
-                        failure
-            )
+                            Err failure ->
+                                failure
+                    )
+    }
 
 
 waypointIdKeyDict =

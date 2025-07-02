@@ -38,12 +38,12 @@ post =
     endpoint "POST"
 
 
-endpoint method path request_ response =
+endpoint method path r =
     Endpoint
         { method = method
         , path = path
-        , request = request_ method path
-        , response = response
+        , request = r.request method path
+        , response = r.response
         }
 
 

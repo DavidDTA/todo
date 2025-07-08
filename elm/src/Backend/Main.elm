@@ -65,12 +65,12 @@ update msg model =
                         (\method url ->
                             case Url.fromString url of
                                 Nothing ->
-                                    badRequest
+                                    Api.badRequest
 
                                 Just { path } ->
                                     case String.split "/" path of
                                         [] ->
-                                            badRequest
+                                            Api.badRequest
 
                                         "" :: pathSegments ->
                                             let
@@ -78,13 +78,13 @@ update msg model =
                                                     List.filterMap Url.percentDecode pathSegments
                                             in
                                             if List.length pathSegments == List.length decodedPathSegments then
-                                                Endpoint.getHandler method decodedPathSegments endpoints request
+                                                Endpoint.getHandler method decodedPathSegments handlers request
 
                                             else
-                                                badRequest
+                                                Api.badRequest
 
                                         _ ->
-                                            badRequest
+                                            Api.badRequest
                         )
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
@@ -92,7 +92,7 @@ update msg model =
                         |> ConcurrentTask.onError
                             (\error ->
                                 Backend.Interop.logError (expectedErrorToString error)
-                                    |> ConcurrentTask.andThenDo internalServerError
+                                    |> ConcurrentTask.andThenDo Api.internalServerError
                             )
                         |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
@@ -126,18 +126,13 @@ unexpectedErrorToString _ =
     "unexpected error"
 
 
-endpoints =
-    Endpoint.handlers
-        (\UniversalAuthentication ->
-            Backend.Interop.getLegacyResponse
-        )
+handlers =
+    Endpoint.handlers Backend.Interop.getLegacyResponse
         |> Endpoint.addHandler Api.priorities
-            (\UniversalAuthentication ->
-                Backend.Interop.withKv
-                    (\kv ->
-                        Backend.Storage.getPriorities kv
-                            |> ConcurrentTask.map Ok
-                    )
+            (Backend.Interop.withKv
+                (\kv ->
+                    Backend.Storage.getPriorities kv
+                )
             )
         |> Endpoint.mapHandlers
             (\handler request ->
@@ -146,10 +141,10 @@ endpoints =
                         (\maybeAuth ->
                             case maybeAuth of
                                 Nothing ->
-                                    forbidden
+                                    Api.forbidden
 
                                 Just auth ->
-                                    handler auth request
+                                    handler request
                         )
             )
         |> Endpoint.addHandler Api.home
@@ -169,7 +164,7 @@ endpoints =
                                 }
                         )
             )
-        |> Endpoint.addHandler Api.login Backend.Interop.getLegacyResponse
+        |> Endpoint.addHandler Api.login (always Backend.Interop.getLegacyResponse)
 
 
 getAuthentication request =
@@ -183,18 +178,6 @@ getAuthentication request =
         )
         (Backend.Interop.getEnvironment consts.env.token)
         (Backend.Interop.getCookie consts.cookie.token request)
-
-
-badRequest =
-    Backend.Interop.getResponse { status = 400, body = "" }
-
-
-forbidden =
-    Backend.Interop.getResponse { status = 403, body = "" }
-
-
-internalServerError =
-    Backend.Interop.getResponse { status = 500, body = "" }
 
 
 consts =

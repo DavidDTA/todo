@@ -5,6 +5,7 @@ port module Backend.Interop exposing
     , Resolver
     , Response
     , attemptTask
+    , getBody
     , getCookie
     , getEnvironment
     , getFileResponse
@@ -199,6 +200,15 @@ getCookie key (Request request) =
         , args =
             Json.Encode.object
                 [ ( "request", request ), ( "key", Json.Encode.string key ) ]
+        }
+
+
+getBody (Request request) =
+    defineTask
+        { function = "req:getBody"
+        , expect = ConcurrentTask.expectString
+        , errors = ConcurrentTask.expectNoErrors
+        , args = request
         }
 
 

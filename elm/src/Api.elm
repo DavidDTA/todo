@@ -1,7 +1,10 @@
 module Api exposing
     ( Waypoint
     , WaypointId
+    , badRequest
+    , forbidden
     , home
+    , internalServerError
     , login
     , priorities
     , unwrapWaypointId
@@ -17,6 +20,7 @@ import Http
 import Json.Decode
 import Json.Encode
 import KeyDict
+import Maybe.Extra
 import Url
 
 
@@ -42,10 +46,8 @@ unwrapWaypointId (WaypointId s) =
 
 
 home =
-    Endpoint.get [ "" ]
-        { request = \_ _ -> never
-        , response = identity
-        }
+    get [ "" ]
+        opaqueResponse
 
 
 apiBase =
@@ -53,23 +55,31 @@ apiBase =
 
 
 login =
-    Endpoint.post
+    post
         (apiBase ++ [ "login" ])
-        { request = \_ _ -> never
-        , response = identity
-        }
+        opaqueRequest
+        opaqueResponse
 
 
+priorities :
+    Endpoint.Endpoint
+        ((Result Http.Error (List WaypointId) -> msg) -> Cmd msg)
+        (ConcurrentTask.ConcurrentTask Backend.Interop.Error (List WaypointId)
+         -> Backend.Interop.Request
+         -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        )
 priorities =
-    Endpoint.get
+    get
         (apiBase ++ [ "priorities" ])
-        (json decodePriorities encodePriorities)
+        (jsonResponse decodePriorities encodePriorities)
 
 
 waypoints =
-    Endpoint.get
+    get
         (apiBase ++ [ "waypoints" ])
-        (json decodeWaypoints never)
+        { expectResponse = (jsonResponse decodeWaypoints (always Json.Encode.null)).expectResponse
+        , handleResult = opaqueResponse.handleResult
+        }
 
 
 decodePriorities =
@@ -112,34 +122,155 @@ decodeWaypoints =
         )
 
 
-json decoder encoder =
-    { request =
-        \method pathSegments tag ->
-            Http.request
-                { method = method
-                , headers = []
-                , url = "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)
-                , body = Http.emptyBody
-                , expect = Http.expectJson tag decoder
-                , timeout = Nothing
-                , tracker = Nothing
-                }
-    , response =
-        \task auth request ->
-            task auth
+emptyRequest =
+    { applyBody = \fn method path -> fn method path Http.emptyBody
+    , handleBody =
+        \task request continue ->
+            Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
-                    (\result ->
-                        case result of
-                            Ok value ->
-                                Backend.Interop.getResponse
-                                    { status = 200
-                                    , body = Json.Encode.encode 0 (encoder value)
-                                    }
+                    (\body ->
+                        case body of
+                            "" ->
+                                continue task request
 
-                            Err failure ->
-                                failure
+                            _ ->
+                                badRequest
                     )
     }
+
+
+opaqueRequest =
+    { applyBody = identity
+    , handleBody = \task request handleResult -> handleResult (task request) request
+    }
+
+
+jsonResponse :
+    Json.Decode.Decoder t
+    -> (t -> Json.Encode.Value)
+    ->
+        { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
+        , handleResult :
+            ConcurrentTask.ConcurrentTask Backend.Interop.Error t
+            -> Backend.Interop.Request
+            -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+jsonResponse decoder encoder =
+    { expectResponse = \tag -> Http.expectJson tag decoder
+    , handleResult =
+        \impl _ ->
+            impl
+                |> ConcurrentTask.andThen
+                    (\value ->
+                        Backend.Interop.getResponse
+                            { status = 200
+                            , body = Json.Encode.encode 0 (encoder value)
+                            }
+                    )
+    }
+
+
+opaqueResponse =
+    { expectResponse = Http.expectWhatever
+    , handleResult = \impl req -> impl req
+    }
+
+
+get :
+    List String
+    ->
+        { expectResponse : (Result Http.Error response -> msg) -> Http.Expect msg
+        , handleResult : impl -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+    ->
+        Endpoint.Endpoint
+            ((Result Http.Error response -> msg) -> Cmd msg)
+            (impl -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response)
+get path response =
+    Endpoint.endpoint "GET" path (endpoint emptyRequest response)
+
+
+post :
+    List String
+    ->
+        { applyBody :
+            (String -> List String -> Http.Body -> (Result Http.Error t -> msg) -> Cmd msg)
+            -> String
+            -> List String
+            -> r
+            -> (Result Http.Error t -> msg)
+            -> Cmd msg
+        , handleBody :
+            (r1 -> impl2)
+            -> Backend.Interop.Request
+            -> (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response)
+            -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+    ->
+        { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
+        , handleResult : impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+    ->
+        Endpoint.Endpoint
+            (r -> (Result Http.Error t -> msg) -> Cmd msg)
+            ((r1 -> impl2) -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response)
+post path request response =
+    Endpoint.endpoint "POST" path (endpoint request response)
+
+
+endpoint :
+    { applyBody :
+        (String
+         -> List String
+         -> Http.Body
+         -> (Result Http.Error t -> msg)
+         -> Cmd msg
+        )
+        -> req
+    , handleBody :
+        impl1
+        -> Backend.Interop.Request
+        -> (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response)
+        -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+    }
+    ->
+        { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
+        , handleResult : impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+    ->
+        { request : req
+        , response : impl1 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+endpoint { applyBody, handleBody } { expectResponse, handleResult } =
+    { request =
+        applyBody
+            (\method pathSegments body tag ->
+                Http.request
+                    { method = method
+                    , headers = []
+                    , url = "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)
+                    , body = body
+                    , expect = expectResponse tag
+                    , timeout = Nothing
+                    , tracker = Nothing
+                    }
+            )
+    , response =
+        \task request ->
+            handleBody task request handleResult
+    }
+
+
+badRequest =
+    Backend.Interop.getResponse { status = 400, body = "" }
+
+
+forbidden =
+    Backend.Interop.getResponse { status = 403, body = "" }
+
+
+internalServerError =
+    Backend.Interop.getResponse { status = 500, body = "" }
 
 
 waypointIdKeyDict =

@@ -1,11 +1,11 @@
 module Endpoint exposing
-    ( Handlers
+    ( Endpoint
+    , Handlers
     , addHandler
-    , get
+    , endpoint
     , getHandler
     , handlers
     , mapHandlers
-    , post
     , request
     )
 
@@ -30,14 +30,7 @@ type Endpoint request response
         }
 
 
-get =
-    endpoint "GET"
-
-
-post =
-    endpoint "POST"
-
-
+endpoint : String -> List String -> { request : String -> List String -> req, response : res } -> Endpoint req res
 endpoint method path r =
     Endpoint
         { method = method
@@ -62,6 +55,7 @@ handlers fallback =
     Handlers { fallback = fallback, registered = Dict.empty }
 
 
+addHandler : Endpoint req (impl -> handler) -> impl -> Handlers handler -> Handlers handler
 addHandler (Endpoint { method, path, response }) handler (Handlers handlers_) =
     Handlers
         { handlers_

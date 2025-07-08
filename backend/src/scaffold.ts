@@ -107,6 +107,7 @@ ConcurrentTask.register({
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
     "log:error": console.error,
+    "req:getBody": (request: Request) => request.text(),
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,

@@ -25,7 +25,7 @@ type Endpoint request response
     = Endpoint
         { method : String
         , path : List String
-        , request_ : request
+        , request : request
         , response : response
         }
 
@@ -42,13 +42,13 @@ endpoint method path request_ response =
     Endpoint
         { method = method
         , path = path
-        , request_ = request_ method path
+        , request = request_ method path
         , response = response
         }
 
 
-request (Endpoint { request_ }) =
-    request_
+request (Endpoint e) =
+    e.request
 
 
 type Handlers response

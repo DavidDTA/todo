@@ -122,8 +122,22 @@ expectedErrorToString error =
                 |> String.join "\n"
 
 
-unexpectedErrorToString _ =
-    "unexpected error"
+unexpectedErrorToString unexpectedError =
+    case unexpectedError of
+        ConcurrentTask.UnhandledJsException { function, message, raw } ->
+            "Unhandled JS exception in " ++ function ++ ": " ++ message
+
+        ConcurrentTask.ResponseDecoderFailure { function, error } ->
+            "Response decoder failure in " ++ function ++ ": " ++ Json.Decode.errorToString error
+
+        ConcurrentTask.ErrorsDecoderFailure { function, error } ->
+            "Errors decoder failure in " ++ function ++ ": " ++ Json.Decode.errorToString error
+
+        ConcurrentTask.MissingFunction error ->
+            "Missing function: " ++ error
+
+        ConcurrentTask.InternalError error ->
+            "ConcurrentTask internal error: " ++ error
 
 
 handlers =

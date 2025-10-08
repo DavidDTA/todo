@@ -6,6 +6,7 @@ import Backend.Storage
 import ConcurrentTask
 import Endpoint
 import Json.Decode
+import Json.Encode
 import Platform
 import Url
 
@@ -50,10 +51,14 @@ update msg model =
             ( { model | taskPool = pool }, cmd )
 
         TaskCompleted (ConcurrentTask.Error error) ->
-            ( model, Backend.Interop.sendError (expectedErrorToString error) )
+            ( model
+            , formatExpectedError error
+                |> List.map Backend.Interop.sendError
+                |> Cmd.batch
+            )
 
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
-            ( model, Backend.Interop.sendError (unexpectedErrorToString error) )
+            ( model, Backend.Interop.sendError (formatUnexpectedError error) )
 
         TaskCompleted (ConcurrentTask.Success ()) ->
             ( model, Cmd.none )
@@ -91,7 +96,9 @@ update msg model =
                         |> ConcurrentTask.andThen identity
                         |> ConcurrentTask.onError
                             (\error ->
-                                Backend.Interop.logError (expectedErrorToString error)
+                                formatExpectedError error
+                                    |> List.map Backend.Interop.logError
+                                    |> ConcurrentTask.sequence
                                     |> ConcurrentTask.andThenDo Api.internalServerError
                             )
                         |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
@@ -108,36 +115,51 @@ subscriptions model =
         ]
 
 
-expectedErrorToString error =
+formatExpectedError error =
     case error of
-        Backend.Interop.JsException { message } ->
-            message
+        Backend.Interop.JsException { function, raw } ->
+            [ { context = "JS exception in " ++ function
+              , error = raw
+              }
+            ]
 
         Backend.Interop.ResponseDecoderFailure decoderError ->
-            Json.Decode.errorToString decoderError
+            [ { context = "Response decoder failure in " ++ decoderError.function
+              , error = Json.Encode.string (Json.Decode.errorToString decoderError.error)
+              }
+            ]
 
         Backend.Interop.MultipleErrors errors ->
             errors
-                |> List.map expectedErrorToString
-                |> String.join "\n"
+                |> List.concatMap formatExpectedError
 
 
-unexpectedErrorToString unexpectedError =
+formatUnexpectedError unexpectedError =
     case unexpectedError of
-        ConcurrentTask.UnhandledJsException { function, message, raw } ->
-            "Unhandled JS exception in " ++ function ++ ": " ++ message
+        ConcurrentTask.UnhandledJsException { function, raw } ->
+            { context = "Unhandled JS exception in " ++ function
+            , error = raw
+            }
 
         ConcurrentTask.ResponseDecoderFailure { function, error } ->
-            "Response decoder failure in " ++ function ++ ": " ++ Json.Decode.errorToString error
+            { context = "Response decoder failure in " ++ function
+            , error = Json.Encode.string (Json.Decode.errorToString error)
+            }
 
         ConcurrentTask.ErrorsDecoderFailure { function, error } ->
-            "Errors decoder failure in " ++ function ++ ": " ++ Json.Decode.errorToString error
+            { context = "Errors decoder failure in " ++ function
+            , error = Json.Encode.string (Json.Decode.errorToString error)
+            }
 
         ConcurrentTask.MissingFunction error ->
-            "Missing function: " ++ error
+            { context = "Missing function"
+            , error = Json.Encode.string error
+            }
 
         ConcurrentTask.InternalError error ->
-            "ConcurrentTask internal error: " ++ error
+            { context = "ConcurrentTask internal error"
+            , error = Json.Encode.string error
+            }
 
 
 handlers =

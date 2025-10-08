@@ -42,7 +42,7 @@ port taskRequests : Json.Decode.Value -> Cmd msg
 port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 
 
-port errors : String -> Cmd msg
+port errors : { context : String, error : Json.Encode.Value } -> Cmd msg
 
 
 type Kv
@@ -63,10 +63,14 @@ type Resolver
 
 type Error
     = JsException
-        { message : String
+        { function : String
+        , message : String
         , raw : Json.Decode.Value
         }
-    | ResponseDecoderFailure Json.Decode.Error
+    | ResponseDecoderFailure
+        { function : String
+        , error : Json.Decode.Error
+        }
     | MultipleErrors (List Error)
 
 
@@ -106,12 +110,16 @@ getEnvironment key =
         }
 
 
-logError message =
+logError { context, error } =
     defineTask
         { function = "log:error"
         , expect = ConcurrentTask.expectWhatever
         , errors = ConcurrentTask.expectNoErrors
-        , args = Json.Encode.string message
+        , args =
+            Json.Encode.object
+                [ ( "context", Json.Encode.string context )
+                , ( "error", error )
+                ]
         }
 
 
@@ -266,5 +274,5 @@ getLegacyResponse (Request request) =
 
 defineTask definition =
     ConcurrentTask.define definition
-        |> ConcurrentTask.onJsException (\e -> ConcurrentTask.fail (JsException e))
-        |> ConcurrentTask.onResponseDecoderFailure (\e -> ConcurrentTask.fail (ResponseDecoderFailure e))
+        |> ConcurrentTask.onJsException (\e -> ConcurrentTask.fail (JsException { function = definition.function, message = e.message, raw = e.raw }))
+        |> ConcurrentTask.onResponseDecoderFailure (\e -> ConcurrentTask.fail (ResponseDecoderFailure { function = definition.function, error = e }))

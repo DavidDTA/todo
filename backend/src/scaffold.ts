@@ -28,6 +28,10 @@ function makeMatchRoute(url: string) {
   };
 }
 
+function logError(context: string, error: any) {
+  console.log(context + ":", error)
+}
+
 async function handle(req: Request) {
   const matchRoute = makeMatchRoute(req.url);
   const route_api_login =
@@ -106,7 +110,7 @@ ConcurrentTask.register({
     "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
-    "log:error": console.error,
+    "log:error": ({ context, error }: { context: string, error: any }) => logError(context, error),
     "req:getBody": (request: Request) => request.text(),
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
@@ -122,8 +126,8 @@ ConcurrentTask.register({
   },
 });
 
-app.ports.errors.subscribe((message) => {
-  throw new Error(message)
+app.ports.errors.subscribe(({ context, error }) => {
+  logError(context, error)
 });
 
 Deno.serve(async (request) => {

@@ -29,6 +29,7 @@
               nixpkgs'.mkShell {
                 packages =
                   builtins.attrValues myPkgs ++ [
+                  nixpkgs'.deno
                   nixpkgs'.elmPackages.elm
                 ];
               };

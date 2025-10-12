@@ -3,6 +3,7 @@ module Ui exposing
     , append
     , button
     , conflict
+    , diminished
     , empty
     , global
     , heading
@@ -32,6 +33,7 @@ type Highlight
     = Primary
     | Secondary
     | Conflict
+    | Diminished
 
 
 toHtml (Flow v) =
@@ -52,6 +54,10 @@ secondary =
 
 conflict =
     Conflict
+
+
+diminished =
+    Diminished
 
 
 empty =
@@ -75,9 +81,15 @@ list items =
         |> List.map
             (\{ content, highlight, bullet, onEnter, onExit } ->
                 Html.Styled.li
-                    [ Html.Styled.Attributes.css
+                    ([ Html.Styled.Attributes.css
                         [ Css.listStyleType
-                            (Css.string (bullet ++ " "))
+                            (case bullet of
+                                Just bulletString ->
+                                    Css.string (bulletString ++ " ")
+
+                                Nothing ->
+                                    Css.none
+                            )
                         , Css.backgroundColor
                             (case highlight of
                                 Nothing ->
@@ -91,13 +103,27 @@ list items =
 
                                 Just Conflict ->
                                     Css.rgb 255 160 160
+
+                                Just Diminished ->
+                                    Css.rgb 192 192 192
                             )
                         ]
-                    , Html.Events.Extra.Pointer.onEnter (always onEnter)
-                        |> Html.Styled.Attributes.fromUnstyled
-                    , Html.Events.Extra.Pointer.onLeave (always onExit)
-                        |> Html.Styled.Attributes.fromUnstyled
-                    ]
+                        |> Just
+                     , onEnter
+                        |> Maybe.map
+                            (always
+                                >> Html.Events.Extra.Pointer.onEnter
+                                >> Html.Styled.Attributes.fromUnstyled
+                            )
+                     , onExit
+                        |> Maybe.map
+                            (always
+                                >> Html.Events.Extra.Pointer.onLeave
+                                >> Html.Styled.Attributes.fromUnstyled
+                            )
+                     ]
+                        |> List.filterMap identity
+                    )
                     (unwrap content)
             )
         |> Html.Styled.ul []

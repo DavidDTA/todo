@@ -349,6 +349,11 @@ globalFilter input waypoint =
             )
 
 
+type WaypointListEntry a
+    = Visible a
+    | Hidden { total : Int }
+
+
 viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
     let
         selectedSeeds =
@@ -395,7 +400,7 @@ viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
             |> List.concatMap
                 (\scc ->
                     Graph.dfs (Graph.onDiscovery (.node >> .label >> (::))) [] scc
-                        |> List.filterMap
+                        |> List.map
                             (\id ->
                                 let
                                     highlight =
@@ -443,6 +448,36 @@ viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
                                 else
                                     Nothing
                             )
+                )
+            |> List.foldr
+                (\item acc ->
+                    case item of
+                        Just content ->
+                            Visible content :: acc
+
+                        Nothing ->
+                            case acc of
+                                (Hidden { total }) :: rest ->
+                                    Hidden { total = total + 1 } :: rest
+
+                                _ ->
+                                    Hidden { total = 1 } :: acc
+                )
+                []
+            |> List.map
+                (\item ->
+                    case item of
+                        Visible content ->
+                            content
+
+                        Hidden { total } ->
+                            { bullet = Nothing
+                            , highlight = Just Ui.diminished
+                            , onEnter = Nothing
+                            , onExit = Nothing
+                            , content =
+                                Ui.text (consts.strings.skippedItems total)
+                            }
                 )
         )
 
@@ -555,10 +590,10 @@ viewWaypointRow { completed, highlight, id, text, url } =
 
 
 viewWaypointRowPrimitive { highlight, icon, id, text, url } =
-    { bullet = icon
+    { bullet = Just icon
     , highlight = highlight
-    , onEnter = Select (Just id)
-    , onExit = Select Nothing
+    , onEnter = Just (Select (Just id))
+    , onExit = Just (Select Nothing)
     , content =
         Ui.text text
             |> Ui.append
@@ -580,5 +615,6 @@ subscriptions model =
 consts =
     { strings =
         { add = "+"
+        , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
         }
     }

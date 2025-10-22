@@ -299,6 +299,7 @@ view model =
     { title = Strings.title.main
     , body =
         Ui.global
+            |> Ui.append (Ui.loader (model.outstanding > 0))
             |> Ui.append
                 (case model.data of
                     Data data ->

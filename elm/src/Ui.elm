@@ -10,6 +10,7 @@ module Ui exposing
     , input
     , link
     , list
+    , loader
     , primary
     , scaffold
     , secondary
@@ -152,6 +153,37 @@ global =
                 [ Css.height (Css.pct 100) ]
             , Css.Global.html
                 [ Css.height (Css.pct 100) ]
+            ]
+        ]
+
+
+loader isLoading =
+    Flow
+        [ Html.Styled.div
+            [ Html.Styled.Attributes.css
+                [ Css.position Css.absolute
+                , Css.top Css.zero
+                , Css.right Css.zero
+                , Css.overflow Css.clip
+                ]
+            ]
+            [ Html.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.width (Css.px 16)
+                    , Css.height (Css.px 16)
+                    , Css.margin (Css.px 8)
+                    , Css.backgroundColor (Css.rgb 0 0 0)
+                    , Css.transform
+                        (if isLoading then
+                            Css.translate2 Css.zero Css.zero
+
+                         else
+                            Css.translate2 (Css.px 32) (Css.px -32)
+                        )
+                    , Css.property "transition" "transform 0.42s cubic-bezier(0.5, -0.5, 0.5, -0.5)"
+                    ]
+                ]
+                []
             ]
         ]
 

@@ -2,6 +2,7 @@ module Api exposing
     ( Waypoint
     , WaypointId(..)
     , addWaypoint
+    , appjs
     , badRequest
     , forbidden
     , home
@@ -48,6 +49,11 @@ unwrapWaypointId (WaypointId s) =
 
 home =
     get [ "" ]
+        opaqueResponse
+
+
+appjs =
+    get [ "-", "app.js" ]
         opaqueResponse
 
 

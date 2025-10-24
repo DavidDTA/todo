@@ -223,12 +223,19 @@ handlers =
                                 , filename =
                                     case auth of
                                         Nothing ->
-                                            "index-unauthenticated.html"
+                                            "files/index-unauthenticated.html"
 
                                         Just UniversalAuthentication ->
-                                            "index-authenticated.html"
+                                            "files/index-authenticated.html"
                                 }
                         )
+            )
+        |> Endpoint.addHandler Api.appjs
+            (\request ->
+                Backend.Interop.getFileResponse
+                    { request = request
+                    , filename = "files/app.js"
+                    }
             )
         |> Endpoint.addHandler Api.login (always Backend.Interop.getLegacyResponse)
 

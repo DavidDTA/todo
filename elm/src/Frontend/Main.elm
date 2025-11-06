@@ -35,15 +35,20 @@ type alias Model =
     { data : RemoteData
     , input : String
     , outstanding : Int
-    , selected : Maybe Api.WaypointId
+    , screen : Screen
     }
+
+
+type Screen
+    = Home
+    | WaypointDetail Api.WaypointId
 
 
 type Msg
     = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
     | InitPriorities (Result Http.Error (List Api.WaypointId))
     | InputUpdate String
-    | Select (Maybe Api.WaypointId)
+    | ShowDetail Api.WaypointId
     | AddWaypoint
     | AddWaypointFinished (Result Http.Error { id : Api.WaypointId, waypoint : Api.Waypoint })
 
@@ -61,7 +66,7 @@ init : () -> ( Model, Cmd Msg )
 init flags =
     ( { data = Loading { priorities = Nothing, waypoints = Nothing }
       , input = ""
-      , selected = Nothing
+      , screen = Home
       , outstanding = 0
       }
     , Cmd.batch
@@ -133,9 +138,9 @@ update msg model =
             , Cmd.none
             )
 
-        Select selection ->
+        ShowDetail waypointId ->
             ( { model
-                | selected = selection
+                | screen = WaypointDetail waypointId
               }
             , Cmd.none
             )
@@ -355,7 +360,7 @@ type WaypointListEntry a
     | Hidden { total : Int }
 
 
-viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
+viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
     let
         selectedSeeds =
             graph
@@ -363,7 +368,7 @@ viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
                 |> List.filter
                     (\n ->
                         Graph.nodes n.label
-                            |> List.any (\{ label } -> Just label == selected)
+                            |> List.any (\{ label } -> WaypointDetail label == screen)
                     )
                 |> List.map .id
 
@@ -405,7 +410,7 @@ viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
                             (\id ->
                                 let
                                     highlight =
-                                        if Just id == selected then
+                                        if WaypointDetail id == screen then
                                             Just Ui.primary
 
                                         else if Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
@@ -474,8 +479,7 @@ viewWaypoints { input, selected } { priorities, sccNodeIds, graph, waypoints } =
                         Hidden { total } ->
                             { bullet = Nothing
                             , highlight = Just Ui.diminished
-                            , onEnter = Nothing
-                            , onExit = Nothing
+                            , onClick = Nothing
                             , content =
                                 Ui.text (consts.strings.skippedItems total)
                             }
@@ -593,8 +597,7 @@ viewWaypointRow { completed, highlight, id, text, url } =
 viewWaypointRowPrimitive { highlight, icon, id, text, url } =
     { bullet = Just icon
     , highlight = highlight
-    , onEnter = Just (Select (Just id))
-    , onExit = Just (Select Nothing)
+    , onClick = Just (ShowDetail id)
     , content =
         Ui.text text
             |> Ui.append

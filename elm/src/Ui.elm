@@ -80,7 +80,7 @@ heading text_ =
 list items =
     items
         |> List.map
-            (\{ content, highlight, bullet, onEnter, onExit } ->
+            (\{ content, highlight, bullet, onClick } ->
                 Html.Styled.li
                     ([ Html.Styled.Attributes.css
                         [ Css.listStyleType
@@ -110,18 +110,8 @@ list items =
                             )
                         ]
                         |> Just
-                     , onEnter
-                        |> Maybe.map
-                            (always
-                                >> Html.Events.Extra.Pointer.onEnter
-                                >> Html.Styled.Attributes.fromUnstyled
-                            )
-                     , onExit
-                        |> Maybe.map
-                            (always
-                                >> Html.Events.Extra.Pointer.onLeave
-                                >> Html.Styled.Attributes.fromUnstyled
-                            )
+                     , onClick
+                        |> Maybe.map Html.Styled.Events.onClick
                      ]
                         |> List.filterMap identity
                     )

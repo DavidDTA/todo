@@ -4,6 +4,7 @@ module Api exposing
     , addWaypoint
     , appjs
     , badRequest
+    , detail
     , forbidden
     , home
     , internalServerError
@@ -49,6 +50,11 @@ unwrapWaypointId (WaypointId s) =
 
 home =
     get [ Endpoint.fixed "" ]
+        opaqueResponse
+
+
+detail =
+    get [ Endpoint.fixed "detail", Endpoint.wildcard ]
         opaqueResponse
 
 

@@ -7,8 +7,10 @@ module Endpoint exposing
     , fixed
     , getHandler
     , handlers
+    , joinPath
     , mapHandlers
     , request
+    , splitPath
     , wildcard
     )
 
@@ -215,3 +217,30 @@ mapHandlersInner fn tree =
 
         UnregisteredNode ->
             UnregisteredNode
+
+
+splitPath stringPath =
+    case String.split "/" stringPath of
+        [] ->
+            Nothing
+
+        "" :: pathSegments ->
+            let
+                decodedPathSegments =
+                    List.filterMap Url.percentDecode pathSegments
+            in
+            if List.length pathSegments == List.length decodedPathSegments then
+                Just decodedPathSegments
+
+            else
+                Nothing
+
+        _ ->
+            Nothing
+
+
+joinPath segments =
+    segments
+        |> List.map Url.percentEncode
+        |> (::) ""
+        |> String.join "/"

@@ -80,7 +80,22 @@ heading text_ =
 list items =
     items
         |> List.map
-            (\{ content, highlight, bullet, onClick } ->
+            (\{ content, highlight, bullet, targetUrl } ->
+                let
+                    container =
+                        case targetUrl of
+                            Nothing ->
+                                identity
+
+                            Just url ->
+                                Html.Styled.a
+                                    [ Html.Styled.Attributes.href url
+                                    , Html.Styled.Attributes.css
+                                        [ Css.display Css.block
+                                        ]
+                                    ]
+                                    >> List.singleton
+                in
                 Html.Styled.li
                     ([ Html.Styled.Attributes.css
                         [ Css.listStyleType
@@ -110,12 +125,10 @@ list items =
                             )
                         ]
                         |> Just
-                     , onClick
-                        |> Maybe.map Html.Styled.Events.onClick
                      ]
                         |> List.filterMap identity
                     )
-                    (unwrap content)
+                    (unwrap content |> container)
             )
         |> Html.Styled.ul []
         |> List.singleton

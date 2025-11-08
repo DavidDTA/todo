@@ -75,23 +75,12 @@ update msg model =
                                     Api.badRequest
 
                                 Just { path } ->
-                                    case String.split "/" path of
-                                        [] ->
+                                    case Endpoint.splitPath path of
+                                        Nothing ->
                                             Api.badRequest
 
-                                        "" :: pathSegments ->
-                                            let
-                                                decodedPathSegments =
-                                                    List.filterMap Url.percentDecode pathSegments
-                                            in
-                                            if List.length pathSegments == List.length decodedPathSegments then
-                                                Endpoint.getHandler method decodedPathSegments handlers request
-
-                                            else
-                                                Api.badRequest
-
-                                        _ ->
-                                            Api.badRequest
+                                        Just pathSegments ->
+                                            Endpoint.getHandler method pathSegments handlers request
                         )
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
@@ -213,23 +202,8 @@ handlers =
                                     handler request
                         )
             )
-        |> Endpoint.addHandler Api.home
-            (\request ->
-                getAuthentication request
-                    |> ConcurrentTask.andThen
-                        (\auth ->
-                            Backend.Interop.getFileResponse
-                                { request = request
-                                , filename =
-                                    case auth of
-                                        Nothing ->
-                                            "files/index-unauthenticated.html"
-
-                                        Just UniversalAuthentication ->
-                                            "files/index-authenticated.html"
-                                }
-                        )
-            )
+        |> Endpoint.addHandler Api.home frontend
+        |> Endpoint.addHandler Api.detail frontend
         |> Endpoint.addHandler Api.appjs
             (\request ->
                 Backend.Interop.getFileResponse
@@ -238,6 +212,23 @@ handlers =
                     }
             )
         |> Endpoint.addHandler Api.login (always Backend.Interop.getLegacyResponse)
+
+
+frontend request =
+    getAuthentication request
+        |> ConcurrentTask.andThen
+            (\auth ->
+                Backend.Interop.getFileResponse
+                    { request = request
+                    , filename =
+                        case auth of
+                            Nothing ->
+                                "files/index-unauthenticated.html"
+
+                            Just UniversalAuthentication ->
+                                "files/index-authenticated.html"
+                    }
+            )
 
 
 getAuthentication request =

@@ -2,6 +2,7 @@ module Frontend.Main exposing (main)
 
 import Api
 import Browser
+import Browser.Navigation
 import Css
 import Dict
 import Endpoint
@@ -15,6 +16,7 @@ import List.Extra
 import Maybe.Extra
 import Strings
 import Ui
+import Url
 
 
 type RemoteData
@@ -34,6 +36,7 @@ type RemoteData
 type alias Model =
     { data : RemoteData
     , input : String
+    , navigationKey : Browser.Navigation.Key
     , outstanding : Int
     , screen : Screen
     }
@@ -42,38 +45,55 @@ type alias Model =
 type Screen
     = Home
     | WaypointDetail Api.WaypointId
+    | Oops
 
 
 type Msg
     = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
     | InitPriorities (Result Http.Error (List Api.WaypointId))
     | InputUpdate String
-    | ShowDetail Api.WaypointId
     | AddWaypoint
     | AddWaypointFinished (Result Http.Error { id : Api.WaypointId, waypoint : Api.Waypoint })
+    | OnUrlRequest Browser.UrlRequest
+    | OnUrlChange Url.Url
 
 
 main =
-    Browser.document
+    Browser.application
         { init = init
         , update = update
         , view = view
         , subscriptions = subscriptions
+        , onUrlRequest = OnUrlRequest
+        , onUrlChange = OnUrlChange
         }
 
 
-init : () -> ( Model, Cmd Msg )
-init flags =
+init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init flags url key =
     ( { data = Loading { priorities = Nothing, waypoints = Nothing }
       , input = ""
-      , screen = Home
+      , screen = parseScreen url.path
       , outstanding = 0
+      , navigationKey = key
       }
     , Cmd.batch
         [ Endpoint.request Api.waypoints InitWaypoints
         , Endpoint.request Api.priorities InitPriorities
         ]
     )
+
+
+parseScreen url =
+    case Endpoint.splitPath url of
+        Just [ "" ] ->
+            Home
+
+        Just [ "detail", id ] ->
+            WaypointDetail (Api.WaypointId id)
+
+        _ ->
+            Oops
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -138,12 +158,16 @@ update msg model =
             , Cmd.none
             )
 
-        ShowDetail waypointId ->
-            ( { model
-                | screen = WaypointDetail waypointId
-              }
-            , Cmd.none
-            )
+        OnUrlRequest urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Browser.Navigation.pushUrl model.navigationKey (Url.toString url) )
+
+                Browser.External url ->
+                    ( model, Browser.Navigation.load url )
+
+        OnUrlChange url ->
+            ( { model | screen = parseScreen url.path }, Cmd.none )
 
 
 initData updateLoading result data =
@@ -479,7 +503,7 @@ viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
                         Hidden { total } ->
                             { bullet = Nothing
                             , highlight = Just Ui.diminished
-                            , onClick = Nothing
+                            , targetUrl = Nothing
                             , content =
                                 Ui.text (consts.strings.skippedItems total)
                             }
@@ -597,7 +621,7 @@ viewWaypointRow { completed, highlight, id, text, url } =
 viewWaypointRowPrimitive { highlight, icon, id, text, url } =
     { bullet = Just icon
     , highlight = highlight
-    , onClick = Just (ShowDetail id)
+    , targetUrl = Just (Endpoint.joinPath [ "detail", Api.unwrapWaypointId id ])
     , content =
         Ui.text text
             |> Ui.append

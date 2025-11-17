@@ -48,22 +48,22 @@ unwrapWaypointId (WaypointId s) =
 
 
 home =
-    get [ "" ]
+    get [ Endpoint.fixed "" ]
         opaqueResponse
 
 
 appjs =
-    get [ "-", "app.js" ]
+    get [ Endpoint.fixed "-", Endpoint.fixed "app.js" ]
         opaqueResponse
 
 
 apiBase =
-    [ "-", "api" ]
+    [ Endpoint.fixed "-", Endpoint.fixed "api" ]
 
 
 login =
     post
-        (apiBase ++ [ "login" ])
+        (apiBase ++ [ Endpoint.fixed "login" ])
         opaqueRequest
         opaqueResponse
 
@@ -77,13 +77,13 @@ priorities :
         )
 priorities =
     get
-        (apiBase ++ [ "priorities" ])
+        (apiBase ++ [ Endpoint.fixed "priorities" ])
         (jsonResponse decodePriorities encodePriorities)
 
 
 waypoints =
     get
-        (apiBase ++ [ "waypoints" ])
+        (apiBase ++ [ Endpoint.fixed "waypoints" ])
         { expectResponse = (jsonResponse decodeWaypoints (always Json.Encode.null)).expectResponse
         , handleResult = opaqueResponse.handleResult
         }
@@ -91,7 +91,7 @@ waypoints =
 
 addWaypoint =
     post
-        (apiBase ++ [ "waypoints" ])
+        (apiBase ++ [ Endpoint.fixed "waypoints" ])
         (jsonRequest decodeAddWaypointRequest encodeAddWaypointRequest)
         (jsonResponse decodeAddWaypointResponse encodeAddWaypointResponse)
 
@@ -265,7 +265,7 @@ opaqueResponse =
 
 
 get :
-    List String
+    List Endpoint.PathComponent
     ->
         { expectResponse : (Result Http.Error response -> msg) -> Http.Expect msg
         , handleResult : impl -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
@@ -279,7 +279,7 @@ get path response =
 
 
 post :
-    List String
+    List Endpoint.PathComponent
     ->
         { applyBody :
             (String -> List String -> Http.Body -> (Result Http.Error t -> msg) -> Cmd msg)

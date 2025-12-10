@@ -332,26 +332,28 @@ view model =
             |> Ui.append
                 (case model.data of
                     Data data ->
-                        Ui.scaffold
-                            (viewWaypoints model data)
-                            (Ui.input { text = model.input, onInput = InputUpdate }
-                                |> Ui.append
-                                    (if model.input == "" then
-                                        Ui.empty
+                        case model.screen of
+                            Home ->
+                                viewHome model data
 
-                                     else
-                                        Ui.button AddWaypoint consts.strings.add
-                                    )
-                            )
+                            WaypointDetail waypointId ->
+                                viewDetail data waypointId
+
+                            Oops ->
+                                viewOops
 
                     Error ->
-                        Ui.alert Strings.error
+                        viewOops
 
                     Loading _ ->
                         Ui.empty
                 )
             |> Ui.toHtml
     }
+
+
+viewOops =
+    Ui.alert Strings.error
 
 
 globalFilter input waypoint =
@@ -384,15 +386,39 @@ type WaypointListEntry a
     | Hidden { total : Int }
 
 
-viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
+viewHome model data =
+    Ui.scaffold
+        (viewWaypoints Nothing (globalFilter model.input) data)
+        (Ui.input { text = model.input, onInput = InputUpdate }
+            |> Ui.append
+                (if model.input == "" then
+                    Ui.empty
+
+                 else
+                    Ui.button AddWaypoint consts.strings.add
+                )
+        )
+
+
+viewDetail ({ waypoints } as data) waypointId =
+    case Api.waypointIdKeyDict .get waypointId waypoints of
+        Nothing ->
+            viewOops
+
+        Just { text } ->
+            Ui.heading text
+                |> Ui.append (viewWaypoints (Just waypointId) (always True) data)
+
+
+viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph, waypoints } =
     let
-        selectedSeeds =
+        seeds =
             graph
                 |> Graph.nodes
                 |> List.filter
                     (\n ->
                         Graph.nodes n.label
-                            |> List.any (\{ label } -> WaypointDetail label == screen)
+                            |> List.any (\{ label } -> focusedWaypointId == Just label)
                     )
                 |> List.map .id
 
@@ -405,7 +431,7 @@ viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
                             |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
                     )
                 )
-                selectedSeeds
+                seeds
                 (Api.waypointIdKeyDict .empty)
                 graph
                 |> Tuple.first
@@ -419,7 +445,7 @@ viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
                             |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
                     )
                 )
-                selectedSeeds
+                seeds
                 (Api.waypointIdKeyDict .empty)
                 graph
                 |> Tuple.first
@@ -434,11 +460,8 @@ viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
                             (\id ->
                                 let
                                     highlight =
-                                        if WaypointDetail id == screen then
+                                        if focusedWaypointId == Just id then
                                             Just Ui.primary
-
-                                        else if Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
-                                            Just Ui.secondary
 
                                         else if Graph.size scc > 1 then
                                             Just Ui.conflict
@@ -448,37 +471,40 @@ viewWaypoints { input, screen } { priorities, sccNodeIds, graph, waypoints } =
 
                                     maybeWaypoint =
                                         Api.waypointIdKeyDict .get id waypoints
-
-                                    passesFilter =
-                                        maybeWaypoint
-                                            |> globalFilter input
                                 in
-                                if passesFilter then
+                                if focusedWaypointId == Nothing || Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
                                     Just
-                                        (case maybeWaypoint of
-                                            Just waypoint ->
-                                                viewWaypointRow
-                                                    { text = waypoint.text
-                                                    , completed = waypoint.completed
-                                                    , highlight = highlight
-                                                    , id = id
-                                                    , url = waypoint.url
-                                                    }
+                                        (if searchPredicate maybeWaypoint then
+                                            Just
+                                                (case maybeWaypoint of
+                                                    Just waypoint ->
+                                                        viewWaypointRow
+                                                            { text = waypoint.text
+                                                            , completed = waypoint.completed
+                                                            , highlight = highlight
+                                                            , id = id
+                                                            , url = waypoint.url
+                                                            }
 
-                                            Nothing ->
-                                                viewWaypointRowPrimitive
-                                                    { text = Strings.unknownWaypoint
-                                                    , icon = "﹖"
-                                                    , id = id
-                                                    , highlight = highlight
-                                                    , url = Nothing
-                                                    }
+                                                    Nothing ->
+                                                        viewWaypointRowPrimitive
+                                                            { text = Strings.unknownWaypoint
+                                                            , icon = "﹖"
+                                                            , id = id
+                                                            , highlight = highlight
+                                                            , url = Nothing
+                                                            }
+                                                )
+
+                                         else
+                                            Nothing
                                         )
 
                                 else
                                     Nothing
                             )
                 )
+            |> List.filterMap identity
             |> List.foldr
                 (\item acc ->
                     case item of

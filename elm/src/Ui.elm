@@ -13,7 +13,6 @@ module Ui exposing
     , loader
     , primary
     , scaffold
-    , secondary
     , text
     , toHtml
     )
@@ -47,10 +46,6 @@ unwrap (Flow v) =
 
 primary =
     Primary
-
-
-secondary =
-    Secondary
 
 
 conflict =

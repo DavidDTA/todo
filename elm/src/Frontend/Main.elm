@@ -139,20 +139,19 @@ update msg model =
         AddWaypointFinished result ->
             ( { model
                 | data =
-                    case model.data of
-                        Loading _ ->
-                            Error
-
-                        Error ->
-                            model.data
-
-                        Data data ->
+                    updateData
+                        (\{ priorities, waypoints } ->
                             case result of
                                 Ok { id, waypoint } ->
-                                    buildData data.priorities (Api.waypointIdKeyDict .insert id waypoint data.waypoints)
+                                    Ok
+                                        { priorities = priorities
+                                        , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
+                                        }
 
                                 Err _ ->
-                                    Error
+                                    Err ()
+                        )
+                        model.data
                 , outstanding = model.outstanding - 1
               }
             , Cmd.none
@@ -188,13 +187,33 @@ initData updateLoading result data =
 resolveData loading =
     case ( loading.priorities, loading.waypoints ) of
         ( Just priorities, Just waypoints ) ->
-            buildData priorities waypoints
+            buildData
+                { priorities = priorities
+                , waypoints = waypoints
+                }
 
         _ ->
             Loading loading
 
 
-buildData priorities waypoints =
+updateData fn remoteData =
+    case remoteData of
+        Loading _ ->
+            Error
+
+        Error ->
+            remoteData
+
+        Data data ->
+            case fn data of
+                Ok updated ->
+                    buildData updated
+
+                Err () ->
+                    Error
+
+
+buildData { priorities, waypoints } =
     let
         addIfMissing id dict =
             Api.waypointIdKeyDict .update

@@ -28,6 +28,7 @@ port module Backend.Interop exposing
     , withKv
     )
 
+import Bytes.Encode
 import ConcurrentTask
 import Json.Decode
 import Json.Encode
@@ -302,10 +303,11 @@ getCookie key (Request request) =
 getBody (Request request) =
     defineTask
         { function = "req:getBody"
-        , expect = ConcurrentTask.expectString
+        , expect = ConcurrentTask.expectJson (Json.Decode.list Json.Decode.int)
         , errors = ConcurrentTask.expectNoErrors
         , args = request
         }
+        |> ConcurrentTask.map (List.map Bytes.Encode.unsignedInt8 >> Bytes.Encode.sequence >> Bytes.Encode.encode)
 
 
 resolveRequest (Resolver resolver) (Response response) =

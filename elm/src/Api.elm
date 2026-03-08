@@ -17,12 +17,16 @@ module Api exposing
     )
 
 import Backend.Interop
+import Bytes
+import Bytes.Decode
+import Bytes.Encode
 import ConcurrentTask
 import Endpoint
 import Http
 import Json.Decode
 import Json.Encode
 import KeyDict
+import Lamdera.Wire3
 import Maybe.Extra
 import Url
 
@@ -98,7 +102,7 @@ waypoints =
 addWaypoint =
     post
         (apiBase ++ [ Endpoint.fixed "waypoints" ])
-        (jsonRequest decodeAddWaypointRequest encodeAddWaypointRequest)
+        (bytesRequest w3_decode_AddWaypointRequest w3_encode_AddWaypointRequest)
         (jsonResponse decodeAddWaypointResponse encodeAddWaypointResponse)
 
 
@@ -146,15 +150,8 @@ decodeWaypoints =
         )
 
 
-encodeAddWaypointRequest { text } =
-    Json.Encode.object
-        [ ( "text", Json.Encode.string text )
-        ]
-
-
-decodeAddWaypointRequest =
-    Json.Decode.field "text" Json.Decode.string
-        |> Json.Decode.map (\text -> { text = text })
+type alias AddWaypointRequest =
+    { text : String }
 
 
 encodeAddWaypointResponse { id, waypoint } =
@@ -189,12 +186,11 @@ emptyRequest =
             Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
                     (\body ->
-                        case body of
-                            "" ->
-                                continue task request
+                        if Bytes.width body == 0 then
+                            continue task request
 
-                            _ ->
-                                badRequest
+                        else
+                            badRequest
                     )
     }
 
@@ -205,9 +201,9 @@ opaqueRequest =
     }
 
 
-jsonRequest :
-    Json.Decode.Decoder r
-    -> (r -> Json.Encode.Value)
+bytesRequest :
+    Bytes.Decode.Decoder r
+    -> (r -> Lamdera.Wire3.Encoder)
     ->
         { applyBody :
             (String -> List String -> Http.Body -> (Result Http.Error t -> msg) -> Cmd msg)
@@ -222,18 +218,18 @@ jsonRequest :
             -> (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response)
             -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
         }
-jsonRequest decoder encoder =
-    { applyBody = \fn method path value -> fn method path (Http.jsonBody (encoder value))
+bytesRequest decoder encoder =
+    { applyBody = \fn method path value -> fn method path (Http.bytesBody "application/octet-stream" (Bytes.Encode.encode (encoder value)))
     , handleBody =
         \task request handleResult ->
             Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
                     (\body ->
-                        case Json.Decode.decodeString decoder body of
-                            Ok value ->
+                        case Bytes.Decode.decode decoder body of
+                            Just value ->
                                 handleResult (task value) request
 
-                            Err _ ->
+                            Nothing ->
                                 badRequest
                     )
     }

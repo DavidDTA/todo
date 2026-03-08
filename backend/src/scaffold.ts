@@ -125,7 +125,7 @@ ConcurrentTask.register({
     "kv:close": (kv: Deno.Kv) => kv.close(),
     "log:error": ({ context, error }: { context: string, error: any }) => logError(context, error),
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
-    "req:getBody": (request: Request) => request.text(),
+    "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
     "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,

@@ -3,9 +3,9 @@
     #! ${bash}/bin/bash
     set -eEuo pipefail
     (cd elm && {
-      ${elmPackages.elm}/bin/elm make src/Frontend/Login.elm --report=json --output=/dev/null >/dev/null
-      ${elmPackages.elm}/bin/elm make src/Frontend/Main.elm --report=json --output=/dev/null >/dev/null
-      ${elmPackages.elm}/bin/elm make src/Backend/Main.elm --report=json --output=/dev/null >/dev/null
+      ${elmPackages.lamdera}/bin/lamdera make src/Frontend/Login.elm --report=json --output=/dev/null >/dev/null
+      ${elmPackages.lamdera}/bin/lamdera make src/Frontend/Main.elm --report=json --output=/dev/null >/dev/null
+      ${elmPackages.lamdera}/bin/lamdera make src/Backend/Main.elm --report=json --output=/dev/null >/dev/null
     }) 2>&1 >/dev/null |
       ${jq}/bin/jq --raw-output '
         .errors[] |

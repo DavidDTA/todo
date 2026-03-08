@@ -49,9 +49,9 @@
     mkdir -p "''${outdir}"
     cp -r backend "''${outdir}/server"
     mkdir -p "''${outdir}/server/files"
-    (cd elm && ${elmPackages.elm}/bin/elm make src/Frontend/Login.elm src/Frontend/Main.elm "''${elm_flags[@]}" --output="''${outdir}/server/files/app.js")
+    (cd elm && ${elmPackages.lamdera}/bin/lamdera make src/Frontend/Login.elm src/Frontend/Main.elm "''${elm_flags[@]}" --output="''${outdir}/server/files/app.js")
     "${write-index}/bin/write-index" Login "''${devtools}" > "''${outdir}/server/files/index-unauthenticated.html"
     "${write-index}/bin/write-index" Main "''${devtools}" > "''${outdir}/server/files/index-authenticated.html"
-    (cd elm && ${elmPackages.elm}/bin/elm make src/Backend/Main.elm "''${elm_flags[@]}" --output="''${outdir}/server/src/elm/main.js")
+    (cd elm && ${elmPackages.lamdera}/bin/lamdera make src/Backend/Main.elm "''${elm_flags[@]}" --output="''${outdir}/server/src/elm/main.js")
     ${elm-to-esm}/bin/elm-to-esm "''${outdir}/server/src/elm/main.js"
   ''

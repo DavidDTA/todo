@@ -4,7 +4,7 @@
       set -Eeuo pipefail
       project="''${1:-}"
       if [ -z "''${project}" ]; then
-        echo "You must specify a project. Here are your existing projects:"
+        echo "You must specify a project as the first positional argument. Here are your existing projects:"
         ${deno}/bin/deno run --allow-sys --allow-env --allow-read --allow-write=deno.json --allow-write=~/.deno --allow-net jsr:@deno/deployctl projects list
         exit 1
       fi

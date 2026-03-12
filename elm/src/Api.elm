@@ -254,7 +254,10 @@ jsonResponse decoder encoder =
                     (\value ->
                         Backend.Interop.getResponse
                             { status = 200
-                            , body = Json.Encode.encode 0 (encoder value)
+                            , body =
+                                Json.Encode.encode 0 (encoder value)
+                                    |> Bytes.Encode.string
+                                    |> Bytes.Encode.encode
                             }
                     )
     }
@@ -352,15 +355,19 @@ endpoint { applyBody, handleBody } { expectResponse, handleResult } =
 
 
 badRequest =
-    Backend.Interop.getResponse { status = 400, body = "" }
+    Backend.Interop.getResponse { status = 400, body = emptyBody }
 
 
 forbidden =
-    Backend.Interop.getResponse { status = 403, body = "" }
+    Backend.Interop.getResponse { status = 403, body = emptyBody }
 
 
 internalServerError =
-    Backend.Interop.getResponse { status = 500, body = "" }
+    Backend.Interop.getResponse { status = 500, body = emptyBody }
+
+
+emptyBody =
+    Bytes.Encode.encode (Bytes.Encode.sequence [])
 
 
 waypointIdKeyDict =

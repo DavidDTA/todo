@@ -28,6 +28,8 @@ port module Backend.Interop exposing
     , withKv
     )
 
+import Bytes
+import Bytes.Decode
 import Bytes.Encode
 import ConcurrentTask
 import Json.Decode
@@ -331,7 +333,22 @@ getResponse { status, body } =
         , args =
             Json.Encode.object
                 [ ( "status", Json.Encode.int status )
-                , ( "body", Json.Encode.string body )
+                , ( "body"
+                  , body
+                        |> Bytes.Decode.decode
+                            (Bytes.Decode.loop []
+                                (\acc ->
+                                    if List.length acc == Bytes.width body then
+                                        Bytes.Decode.succeed (Bytes.Decode.Done (List.reverse acc))
+
+                                    else
+                                        Bytes.Decode.unsignedInt8
+                                            |> Bytes.Decode.map (\byte -> Bytes.Decode.Loop (byte :: acc))
+                                )
+                            )
+                        |> Maybe.withDefault []
+                        |> Json.Encode.list Json.Encode.int
+                  )
                 ]
         }
 

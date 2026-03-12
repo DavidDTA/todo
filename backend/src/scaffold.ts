@@ -131,7 +131,7 @@ ConcurrentTask.register({
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
     "req:resolve": ({ resolver, response }: { resolver: (_: Response) => void, response: Response}) => resolver(response),
     "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
-    "resp:get": ({ status, body }: { status: number, body: string }) => new Response(body, { status }),
+    "resp:get": ({ status, body }: { status: number, body: Array<number> }) => new Response(Uint8Array.from(body), { status }),
     "resp:legacy": handle,
   },
   ports: {

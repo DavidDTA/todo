@@ -88,7 +88,7 @@ priorities :
 priorities =
     get
         (apiBase ++ [ Endpoint.fixed "priorities" ])
-        (jsonResponse decodePriorities encodePriorities)
+        (bytesResponse w3_decode_Priorities w3_encode_Priorities)
 
 
 waypoints =
@@ -103,19 +103,11 @@ addWaypoint =
     post
         (apiBase ++ [ Endpoint.fixed "waypoints" ])
         (bytesRequest w3_decode_AddWaypointRequest w3_encode_AddWaypointRequest)
-        (jsonResponse decodeAddWaypointResponse encodeAddWaypointResponse)
+        (bytesResponse w3_decode_AddWaypointResponse w3_encode_AddWaypointResponse)
 
 
-decodePriorities =
-    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string))
-
-
-encodePriorities priorities_ =
-    Json.Encode.object
-        [ ( "priorities"
-          , Json.Encode.list (\(WaypointId id) -> Json.Encode.string id) priorities_
-          )
-        ]
+type alias Priorities =
+    List WaypointId
 
 
 decodeWaypoint =
@@ -154,29 +146,8 @@ type alias AddWaypointRequest =
     { text : String }
 
 
-encodeAddWaypointResponse { id, waypoint } =
-    encodeWaypoint id waypoint
-
-
-decodeAddWaypointResponse =
-    decodeWaypoint
-
-
-encodeWaypoint (WaypointId id) { text, completed, url, requires, requiredBy } =
-    Json.Encode.object
-        [ ( "id", Json.Encode.string id )
-        , ( "text", Json.Encode.string text )
-        , ( "completed", Json.Encode.bool completed )
-        , ( "url", Maybe.Extra.unwrap Json.Encode.null Json.Encode.string url )
-        , ( "requires"
-          , requires
-                |> Json.Encode.list (\(WaypointId requiresId) -> Json.Encode.string requiresId)
-          )
-        , ( "requiredBy"
-          , requiredBy
-                |> Json.Encode.list (\(WaypointId requiresId) -> Json.Encode.string requiresId)
-          )
-        ]
+type alias AddWaypointResponse =
+    { id : WaypointId, waypoint : Waypoint }
 
 
 emptyRequest =
@@ -231,6 +202,32 @@ bytesRequest decoder encoder =
 
                             Nothing ->
                                 badRequest
+                    )
+    }
+
+
+bytesResponse :
+    Bytes.Decode.Decoder t
+    -> (t -> Bytes.Encode.Encoder)
+    ->
+        { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
+        , handleResult :
+            ConcurrentTask.ConcurrentTask Backend.Interop.Error t
+            -> Backend.Interop.Request
+            -> ConcurrentTask.ConcurrentTask Backend.Interop.Error Backend.Interop.Response
+        }
+bytesResponse decoder encoder =
+    { expectResponse = \tag -> Http.expectBytes tag decoder
+    , handleResult =
+        \impl _ ->
+            impl
+                |> ConcurrentTask.andThen
+                    (\value ->
+                        Backend.Interop.getResponse
+                            { status = 200
+                            , body =
+                                Bytes.Encode.encode (encoder value)
+                            }
                     )
     }
 

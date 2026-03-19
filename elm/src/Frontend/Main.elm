@@ -15,6 +15,7 @@ import Json.Decode
 import KeyDict
 import List.Extra
 import Maybe.Extra
+import NetworkQueue
 import Strings
 import Ui
 import Url
@@ -38,7 +39,7 @@ type alias Model =
     { data : RemoteData
     , input : String
     , navigationKey : Browser.Navigation.Key
-    , outstanding : Int
+    , networkQueue : NetworkQueue.NetworkQueue NetworkRequest ()
     , screen : Screen
     }
 
@@ -50,21 +51,27 @@ type Screen
 
 
 type Msg
-    = NetworkResponse NetworkResponse
+    = NetworkResponse { token : NetworkQueue.Token, result : Result.Result Http.Error NetworkResponse }
     | OnUrlRequest Browser.UrlRequest
     | OnUrlChange Url.Url
     | UserAction UserAction
 
 
 type UserAction
-    = AddWaypoint
+    = ClickAddWaypoint
     | ChangeInput String
 
 
+type NetworkRequest
+    = AddWaypoint { text : String }
+    | InitWaypoints
+    | InitPriorities
+
+
 type NetworkResponse
-    = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
-    | InitPriorities (Result Http.Error (List Api.WaypointId))
-    | AddWaypointFinished (Result Http.Error { id : Api.WaypointId, waypoint : Api.Waypoint })
+    = InitWaypointsResponse (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
+    | InitPrioritiesResponse (List Api.WaypointId)
+    | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
 
 
 main =
@@ -83,14 +90,13 @@ init flags url key =
     ( { data = Loading { priorities = Nothing, waypoints = Nothing }
       , input = ""
       , screen = parseScreen url.path
-      , outstanding = 0
       , navigationKey = key
+      , networkQueue = NetworkQueue.empty
       }
-    , Cmd.batch
-        [ Endpoint.request Api.waypoints (InitWaypoints >> NetworkResponse)
-        , Endpoint.request Api.priorities (InitPriorities >> NetworkResponse)
-        ]
+    , Cmd.none
     )
+        |> makeNetworkRequest InitWaypoints
+        |> makeNetworkRequest InitPriorities
 
 
 parseScreen url =
@@ -108,50 +114,23 @@ parseScreen url =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NetworkResponse networkResponse ->
-            case networkResponse of
-                InitPriorities result ->
-                    ( { model
-                        | data =
-                            initData
-                                (\value loading -> { loading | priorities = value })
-                                result
-                                model.data
-                      }
-                    , Cmd.none
-                    )
+        NetworkResponse { token, result } ->
+            case result of
+                Err _ ->
+                    let
+                        { queue, cmd } =
+                            NetworkQueue.halt requestToCmd token () model.networkQueue
+                    in
+                    ( { model | networkQueue = queue }, cmd )
 
-                InitWaypoints result ->
-                    ( { model
-                        | data =
-                            initData
-                                (\value loading -> { loading | waypoints = value })
-                                result
-                                model.data
-                      }
-                    , Cmd.none
-                    )
-
-                AddWaypointFinished result ->
-                    ( { model
-                        | data =
-                            updateData
-                                (\{ priorities, waypoints } ->
-                                    case result of
-                                        Ok { id, waypoint } ->
-                                            Ok
-                                                { priorities = priorities
-                                                , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
-                                                }
-
-                                        Err _ ->
-                                            Err ()
-                                )
-                                model.data
-                        , outstanding = model.outstanding - 1
-                      }
-                    , Cmd.none
-                    )
+                Ok response ->
+                    let
+                        { queue, cmd } =
+                            NetworkQueue.dequeue requestToCmd token model.networkQueue
+                    in
+                    { model | networkQueue = queue }
+                        |> updateForNetworkResponse response
+                        |> (\( newModel, responseCmd ) -> ( newModel, Cmd.batch [ cmd, responseCmd ] ))
 
         OnUrlRequest urlRequest ->
             case urlRequest of
@@ -173,25 +152,58 @@ update msg model =
                     , Cmd.none
                     )
 
-                AddWaypoint ->
+                ClickAddWaypoint ->
                     ( { model
                         | input = ""
-                        , outstanding = model.outstanding + 1
                       }
-                    , Endpoint.request Api.addWaypoint { text = model.input } (AddWaypointFinished >> NetworkResponse)
+                    , Cmd.none
                     )
+                        |> makeNetworkRequest (AddWaypoint { text = model.input })
 
 
-initData updateLoading result data =
-    case ( data, result ) of
-        ( Loading loading, Ok value ) ->
-            if updateLoading Nothing loading == loading then
-                loading
-                    |> updateLoading (Just value)
-                    |> resolveData
+updateForNetworkResponse response model =
+    case response of
+        InitPrioritiesResponse value ->
+            ( { model
+                | data =
+                    initData
+                        (\loading -> { loading | priorities = Just value })
+                        model.data
+              }
+            , Cmd.none
+            )
 
-            else
-                Error
+        InitWaypointsResponse value ->
+            ( { model
+                | data =
+                    initData
+                        (\loading -> { loading | waypoints = Just value })
+                        model.data
+              }
+            , Cmd.none
+            )
+
+        AddWaypointResponse { id, waypoint } ->
+            ( { model
+                | data =
+                    updateData
+                        (\{ priorities, waypoints } ->
+                            { priorities = priorities
+                            , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
+                            }
+                        )
+                        model.data
+              }
+            , Cmd.none
+            )
+
+
+initData updateLoading data =
+    case data of
+        Loading loading ->
+            loading
+                |> updateLoading
+                |> resolveData
 
         _ ->
             Error
@@ -218,12 +230,7 @@ updateData fn remoteData =
             remoteData
 
         Data data ->
-            case fn data of
-                Ok updated ->
-                    buildData updated
-
-                Err () ->
-                    Error
+            buildData (fn data)
 
 
 buildData { priorities, waypoints } =
@@ -360,7 +367,7 @@ view model =
     { title = Strings.title.main
     , body =
         Ui.global
-            |> Ui.append (Ui.loader (model.outstanding > 0))
+            |> Ui.append (Ui.loader (NetworkQueue.fold (always ((||) True)) False model.networkQueue))
             |> Ui.append
                 (case model.data of
                     Data data ->
@@ -428,7 +435,7 @@ viewHome model data =
                     Ui.empty
 
                  else
-                    Ui.button AddWaypoint consts.strings.add
+                    Ui.button ClickAddWaypoint consts.strings.add
                 )
         )
 
@@ -693,6 +700,42 @@ viewWaypointRowPrimitive { highlight, icon, id, text, url } =
                             |> Ui.append (Ui.link justUrl)
                 )
     }
+
+
+makeNetworkRequest request ( model, previousCmd ) =
+    let
+        { queue, cmd } =
+            NetworkQueue.enqueue requestToCmd (requestSafety request) request model.networkQueue
+    in
+    ( { model | networkQueue = queue }, Cmd.batch [ previousCmd, cmd ] )
+
+
+requestToCmd token request =
+    let
+        tagWith tag result =
+            NetworkResponse { token = token, result = Result.map tag result }
+    in
+    case request of
+        AddWaypoint r ->
+            Endpoint.request Api.addWaypoint r (tagWith AddWaypointResponse)
+
+        InitWaypoints ->
+            Endpoint.request Api.waypoints (tagWith InitWaypointsResponse)
+
+        InitPriorities ->
+            Endpoint.request Api.priorities (tagWith InitPrioritiesResponse)
+
+
+requestSafety request =
+    case request of
+        AddWaypoint _ ->
+            NetworkQueue.Unsafe
+
+        InitWaypoints ->
+            NetworkQueue.Safe
+
+        InitPriorities ->
+            NetworkQueue.Safe
 
 
 subscriptions model =

@@ -8,6 +8,7 @@ import Dict
 import Endpoint
 import Graph
 import Heap
+import Html
 import Http
 import IntDict
 import Json.Decode
@@ -49,13 +50,21 @@ type Screen
 
 
 type Msg
-    = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
-    | InitPriorities (Result Http.Error (List Api.WaypointId))
-    | InputUpdate String
-    | AddWaypoint
-    | AddWaypointFinished (Result Http.Error { id : Api.WaypointId, waypoint : Api.Waypoint })
+    = NetworkResponse NetworkResponse
     | OnUrlRequest Browser.UrlRequest
     | OnUrlChange Url.Url
+    | UserAction UserAction
+
+
+type UserAction
+    = AddWaypoint
+    | ChangeInput String
+
+
+type NetworkResponse
+    = InitWaypoints (Result Http.Error (KeyDict.KeyDict Api.WaypointId String Api.Waypoint))
+    | InitPriorities (Result Http.Error (List Api.WaypointId))
+    | AddWaypointFinished (Result Http.Error { id : Api.WaypointId, waypoint : Api.Waypoint })
 
 
 main =
@@ -78,8 +87,8 @@ init flags url key =
       , navigationKey = key
       }
     , Cmd.batch
-        [ Endpoint.request Api.waypoints InitWaypoints
-        , Endpoint.request Api.priorities InitPriorities
+        [ Endpoint.request Api.waypoints (InitWaypoints >> NetworkResponse)
+        , Endpoint.request Api.priorities (InitPriorities >> NetworkResponse)
         ]
     )
 
@@ -99,63 +108,50 @@ parseScreen url =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        InitPriorities result ->
-            ( { model
-                | data =
-                    initData
-                        (\value loading -> { loading | priorities = value })
-                        result
-                        model.data
-              }
-            , Cmd.none
-            )
+        NetworkResponse networkResponse ->
+            case networkResponse of
+                InitPriorities result ->
+                    ( { model
+                        | data =
+                            initData
+                                (\value loading -> { loading | priorities = value })
+                                result
+                                model.data
+                      }
+                    , Cmd.none
+                    )
 
-        InitWaypoints result ->
-            ( { model
-                | data =
-                    initData
-                        (\value loading -> { loading | waypoints = value })
-                        result
-                        model.data
-              }
-            , Cmd.none
-            )
+                InitWaypoints result ->
+                    ( { model
+                        | data =
+                            initData
+                                (\value loading -> { loading | waypoints = value })
+                                result
+                                model.data
+                      }
+                    , Cmd.none
+                    )
 
-        InputUpdate input ->
-            ( { model
-                | input = input
-              }
-            , Cmd.none
-            )
+                AddWaypointFinished result ->
+                    ( { model
+                        | data =
+                            updateData
+                                (\{ priorities, waypoints } ->
+                                    case result of
+                                        Ok { id, waypoint } ->
+                                            Ok
+                                                { priorities = priorities
+                                                , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
+                                                }
 
-        AddWaypoint ->
-            ( { model
-                | input = ""
-                , outstanding = model.outstanding + 1
-              }
-            , Endpoint.request Api.addWaypoint { text = model.input } AddWaypointFinished
-            )
-
-        AddWaypointFinished result ->
-            ( { model
-                | data =
-                    updateData
-                        (\{ priorities, waypoints } ->
-                            case result of
-                                Ok { id, waypoint } ->
-                                    Ok
-                                        { priorities = priorities
-                                        , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
-                                        }
-
-                                Err _ ->
-                                    Err ()
-                        )
-                        model.data
-                , outstanding = model.outstanding - 1
-              }
-            , Cmd.none
-            )
+                                        Err _ ->
+                                            Err ()
+                                )
+                                model.data
+                        , outstanding = model.outstanding - 1
+                      }
+                    , Cmd.none
+                    )
 
         OnUrlRequest urlRequest ->
             case urlRequest of
@@ -167,6 +163,23 @@ update msg model =
 
         OnUrlChange url ->
             ( { model | screen = parseScreen url.path }, Cmd.none )
+
+        UserAction userAction ->
+            case userAction of
+                ChangeInput input ->
+                    ( { model
+                        | input = input
+                      }
+                    , Cmd.none
+                    )
+
+                AddWaypoint ->
+                    ( { model
+                        | input = ""
+                        , outstanding = model.outstanding + 1
+                      }
+                    , Endpoint.request Api.addWaypoint { text = model.input } (AddWaypointFinished >> NetworkResponse)
+                    )
 
 
 initData updateLoading result data =
@@ -368,6 +381,7 @@ view model =
                         Ui.empty
                 )
             |> Ui.toHtml
+            |> List.map (Html.map UserAction)
     }
 
 
@@ -408,7 +422,7 @@ type WaypointListEntry a
 viewHome model data =
     Ui.scaffold
         (viewWaypoints Nothing (globalFilter model.input) data)
-        (Ui.input { text = model.input, onInput = InputUpdate }
+        (Ui.input { text = model.input, onInput = ChangeInput }
             |> Ui.append
                 (if model.input == "" then
                     Ui.empty

@@ -37,4 +37,6 @@
           join("")
         )
       '
+    mkdir -p build
+    touch build/touchstone
   ''

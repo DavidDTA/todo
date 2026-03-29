@@ -17,6 +17,7 @@ import List.Extra
 import Maybe.Extra
 import NetworkQueue
 import Strings
+import Task
 import Ui
 import Url
 
@@ -51,7 +52,8 @@ type Screen
 
 
 type Msg
-    = NetworkResponse { token : NetworkQueue.Token, result : Result.Result Http.Error NetworkResponse }
+    = DelayedInit
+    | NetworkResponse { token : NetworkQueue.Token, result : Result.Result Http.Error NetworkResponse }
     | OnUrlRequest Browser.UrlRequest
     | OnUrlChange Url.Url
     | UserAction UserAction
@@ -93,10 +95,8 @@ init flags url key =
       , navigationKey = key
       , networkQueue = NetworkQueue.empty
       }
-    , Cmd.none
+    , Task.perform identity (Task.succeed DelayedInit)
     )
-        |> makeNetworkRequest InitWaypoints
-        |> makeNetworkRequest InitPriorities
 
 
 parseScreen url =
@@ -114,6 +114,11 @@ parseScreen url =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        DelayedInit ->
+            ( model, Cmd.none )
+                |> makeNetworkRequest InitWaypoints
+                |> makeNetworkRequest InitPriorities
+
         NetworkResponse { token, result } ->
             case result of
                 Err _ ->

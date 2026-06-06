@@ -7,6 +7,7 @@ port module Backend.Interop exposing
     , Response
     , atomicOpCheck
     , atomicOpCommit
+    , atomicOpDelete
     , atomicOpSet
     , attemptTask
     , getBody
@@ -179,6 +180,19 @@ atomicOpCommit (AtomicOperation op) =
                 |> ConcurrentTask.expectJson
         , errors = ConcurrentTask.expectNoErrors
         , args = op
+        }
+
+
+atomicOpDelete (AtomicOperation op) { key } =
+    defineTask
+        { function = "atomicOp:delete"
+        , expect = ConcurrentTask.expectWhatever
+        , errors = ConcurrentTask.expectNoErrors
+        , args =
+            Json.Encode.object
+                [ ( "atomicOp", op )
+                , ( "key", Json.Encode.list Json.Encode.string key )
+                ]
         }
 
 

@@ -189,6 +189,18 @@ handlers =
                             |> ConcurrentTask.map .result
                     )
             )
+        |> Endpoint.addHandler Api.deleteWaypoint
+            (\{ id } ->
+                Backend.Interop.withKv
+                    (\kv ->
+                        transact kv
+                            (\op ->
+                                Backend.Storage.deleteWaypoint op id
+                                    |> ConcurrentTask.return {}
+                            )
+                            |> ConcurrentTask.map .result
+                    )
+            )
         |> Endpoint.mapHandlers
             (\handler request ->
                 getAuthentication request

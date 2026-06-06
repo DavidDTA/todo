@@ -117,6 +117,7 @@ ConcurrentTask.register({
   tasks: {
     "atomicOp:check": ({ atomicOp, key, versionstamp }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, versionstamp : string | null }) => atomicOp.check({ key, versionstamp }),
     "atomicOp:commit": (atomicOp: Deno.AtomicOperation) => atomicOp.commit(),
+    "atomicOp:delete": ({ atomicOp, key }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey }) => atomicOp.delete(key),
     "atomicOp:set": ({ atomicOp, key, value }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, value: any }) => atomicOp.set(key, value),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
     "kv:atomic": (kv: Deno.Kv) => kv.atomic(),

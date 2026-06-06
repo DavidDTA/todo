@@ -61,11 +61,13 @@ type Msg
 
 type UserAction
     = ClickAddWaypoint
+    | ClickDeleteWaypoint Api.WaypointId
     | ChangeInput String
 
 
 type NetworkRequest
     = AddWaypoint { text : String }
+    | DeleteWaypoint { id : Api.WaypointId }
     | InitWaypoints
     | InitPriorities
 
@@ -74,6 +76,7 @@ type NetworkResponse
     = InitWaypointsResponse (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
+    | DeleteWaypointResponse Api.WaypointId {}
 
 
 main =
@@ -165,6 +168,27 @@ update msg model =
                     )
                         |> makeNetworkRequest (AddWaypoint { text = model.input })
 
+                ClickDeleteWaypoint id ->
+                    ( { model
+                        | screen =
+                            case model.screen of
+                                Home ->
+                                    model.screen
+
+                                WaypointDetail detailId ->
+                                    if id == detailId then
+                                        Home
+
+                                    else
+                                        model.screen
+
+                                Oops ->
+                                    model.screen
+                      }
+                    , Cmd.none
+                    )
+                        |> makeNetworkRequest (DeleteWaypoint { id = id })
+
 
 updateForNetworkResponse response model =
     case response of
@@ -195,6 +219,20 @@ updateForNetworkResponse response model =
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
                             , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
+                            }
+                        )
+                        model.data
+              }
+            , Cmd.none
+            )
+
+        DeleteWaypointResponse id {} ->
+            ( { model
+                | data =
+                    updateData
+                        (\{ priorities, waypoints } ->
+                            { priorities = priorities
+                            , waypoints = Api.waypointIdKeyDict .remove id waypoints
                             }
                         )
                         model.data
@@ -452,6 +490,7 @@ viewDetail ({ waypoints } as data) waypointId =
 
         Just { text } ->
             Ui.heading text
+                |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) "⨉")
                 |> Ui.append (viewWaypoints (Just waypointId) (always True) data)
 
 
@@ -724,6 +763,9 @@ requestToCmd token request =
         AddWaypoint r ->
             Endpoint.request Api.addWaypoint r (tagWith AddWaypointResponse)
 
+        DeleteWaypoint r ->
+            Endpoint.request Api.deleteWaypoint r (tagWith (DeleteWaypointResponse r.id))
+
         InitWaypoints ->
             Endpoint.request Api.waypoints (tagWith InitWaypointsResponse)
 
@@ -735,6 +777,9 @@ requestSafety request =
     case request of
         AddWaypoint _ ->
             NetworkQueue.Unsafe
+
+        DeleteWaypoint _ ->
+            NetworkQueue.Idempotent
 
         InitWaypoints ->
             NetworkQueue.Safe

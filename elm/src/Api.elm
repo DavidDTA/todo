@@ -4,6 +4,7 @@ module Api exposing
     , addWaypoint
     , appjs
     , badRequest
+    , deleteWaypoint
     , detail
     , forbidden
     , home
@@ -101,9 +102,16 @@ waypoints =
 
 addWaypoint =
     post
-        (apiBase ++ [ Endpoint.fixed "waypoints" ])
+        (apiBase ++ [ Endpoint.fixed "add-waypoint" ])
         (bytesRequest w3_decode_AddWaypointRequest w3_encode_AddWaypointRequest)
         (bytesResponse w3_decode_AddWaypointResponse w3_encode_AddWaypointResponse)
+
+
+deleteWaypoint =
+    post
+        (apiBase ++ [ Endpoint.fixed "delete-waypoint" ])
+        (bytesRequest w3_decode_DeleteWaypointRequest w3_encode_DeleteWaypointRequest)
+        (bytesResponse w3_decode_DeleteWaypointResponse w3_encode_DeleteWaypointResponse)
 
 
 type alias Priorities =
@@ -148,6 +156,14 @@ type alias AddWaypointRequest =
 
 type alias AddWaypointResponse =
     { id : WaypointId, waypoint : Waypoint }
+
+
+type alias DeleteWaypointRequest =
+    { id : WaypointId }
+
+
+type alias DeleteWaypointResponse =
+    {}
 
 
 emptyRequest =

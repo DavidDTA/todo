@@ -1,5 +1,6 @@
 module Backend.Storage exposing
     ( addWaypoint
+    , deleteWaypoint
     , getPriorities
     )
 
@@ -27,6 +28,11 @@ addWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : Stri
 addWaypoint op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
         |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = Json.Encode.object [ ( "text", Json.Encode.string text ) ] })
+
+
+deleteWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask Backend.Interop.Error ()
+deleteWaypoint op id =
+    Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
 
 
 decodePriorities =

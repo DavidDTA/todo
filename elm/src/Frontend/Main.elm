@@ -48,7 +48,7 @@ type alias Model =
 type Screen
     = Home
     | WaypointDetail Api.WaypointId
-    | Oops
+    | Oops OopsReason
 
 
 type Msg
@@ -77,6 +77,11 @@ type NetworkResponse
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
     | DeleteWaypointResponse Api.WaypointId {}
+
+
+type OopsReason
+    = UnknownPath
+    | DataError
 
 
 main =
@@ -111,7 +116,7 @@ parseScreen url =
             WaypointDetail (Api.WaypointId id)
 
         _ ->
-            Oops
+            Oops UnknownPath
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -182,7 +187,7 @@ update msg model =
                                     else
                                         model.screen
 
-                                Oops ->
+                                Oops _ ->
                                     model.screen
                       }
                     , Cmd.none
@@ -421,11 +426,11 @@ view model =
                             WaypointDetail waypointId ->
                                 viewDetail data waypointId
 
-                            Oops ->
-                                viewOops
+                            Oops reason ->
+                                viewOops reason
 
                     Error ->
-                        viewOops
+                        viewOops DataError
 
                     Loading _ ->
                         Ui.empty
@@ -435,8 +440,21 @@ view model =
     }
 
 
-viewOops =
-    Ui.alert Strings.error
+viewOops reason =
+    Ui.heading Strings.oops
+        |> Ui.append
+            (case reason of
+                UnknownPath ->
+                    consts.strings.unknownPath
+                        (\beginning link end ->
+                            Ui.text beginning
+                                |> Ui.append (Ui.link "/" (Just link))
+                                |> Ui.append (Ui.text end)
+                        )
+
+                DataError ->
+                    Ui.text consts.strings.dataError
+            )
 
 
 globalFilter input waypoint =
@@ -486,7 +504,7 @@ viewHome model data =
 viewDetail ({ waypoints } as data) waypointId =
     case Api.waypointIdKeyDict .get waypointId waypoints of
         Nothing ->
-            viewOops
+            viewOops UnknownPath
 
         Just { text } ->
             Ui.heading text
@@ -741,7 +759,7 @@ viewWaypointRowPrimitive { highlight, icon, id, text, url } =
 
                     Just justUrl ->
                         Ui.text " "
-                            |> Ui.append (Ui.link justUrl)
+                            |> Ui.append (Ui.link justUrl Nothing)
                 )
     }
 
@@ -797,5 +815,7 @@ consts =
         { add = "+"
         , delete = "⨉"
         , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
+        , unknownPath = \combine -> combine "You wound up somewhere unexpected. " "Click here" " to go back home."
+        , dataError = "Something unexpexted happened when loading your data."
         }
     }

@@ -1,6 +1,5 @@
 module Ui exposing
-    ( alert
-    , append
+    ( append
     , button
     , conflict
     , diminished
@@ -62,10 +61,6 @@ empty =
 
 append (Flow back) (Flow front) =
     Flow (front ++ back)
-
-
-alert text_ =
-    Flow [ Html.Styled.text text_ ]
 
 
 heading text_ =
@@ -134,11 +129,11 @@ text text_ =
     Html.Styled.text text_ |> List.singleton |> Flow
 
 
-link url =
+link url text_ =
     Html.Styled.a
         [ Html.Styled.Attributes.href url
         ]
-        [ Html.Styled.text "🔗"
+        [ Html.Styled.text (Maybe.withDefault "🔗" text_)
         ]
         |> List.singleton
         |> Flow

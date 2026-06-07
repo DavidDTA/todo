@@ -7,8 +7,8 @@ title =
     }
 
 
-error =
-    "error"
+oops =
+    "Oops!"
 
 
 logIn =

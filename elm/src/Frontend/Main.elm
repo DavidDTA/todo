@@ -490,7 +490,7 @@ viewDetail ({ waypoints } as data) waypointId =
 
         Just { text } ->
             Ui.heading text
-                |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) "⨉")
+                |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) consts.strings.delete)
                 |> Ui.append (viewWaypoints (Just waypointId) (always True) data)
 
 
@@ -795,6 +795,7 @@ subscriptions model =
 consts =
     { strings =
         { add = "+"
+        , delete = "⨉"
         , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
         }
     }

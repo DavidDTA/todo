@@ -7,6 +7,7 @@ module Api exposing
     , badRequest
     , deleteWaypoint
     , detail
+    , export
     , forbidden
     , home
     , internalServerError
@@ -68,6 +69,35 @@ detail =
     get [ Endpoint.fixed "detail", Endpoint.wildcard ]
         opaqueResponse
         |> withRequest
+
+
+export =
+    get [ Endpoint.fixed "account", Endpoint.fixed "export" ]
+        (jsonResponse
+            (\response ->
+                Json.Encode.object
+                    [ ( "priorities"
+                      , Json.Encode.list (unwrapWaypointId >> Json.Encode.string) response.priorities
+                      )
+                    , ( "waypoints"
+                      , response.waypoints
+                            |> List.map
+                                (\{ id, waypoint } ->
+                                    ( unwrapWaypointId id
+                                    , Json.Encode.object
+                                        [ ( "text", Json.Encode.string waypoint.text )
+                                        , ( "completed", Json.Encode.bool waypoint.completed )
+                                        , ( "url", Maybe.Extra.unwrap Json.Encode.null Json.Encode.string waypoint.url )
+                                        , ( "requires", Json.Encode.list (unwrapWaypointId >> Json.Encode.string) waypoint.requires )
+                                        , ( "requiredBy", Json.Encode.list (unwrapWaypointId >> Json.Encode.string) waypoint.requiredBy )
+                                        ]
+                                    )
+                                )
+                            |> Json.Encode.object
+                      )
+                    ]
+            )
+        )
 
 
 appjs =
@@ -217,6 +247,32 @@ bytesResponse decoder encoder =
                             { status = 200
                             , body =
                                 Bytes.Encode.encode (encoder value)
+                            }
+                    )
+    }
+
+
+jsonResponse :
+    (t -> Json.Encode.Value)
+    ->
+        { expectResponse : (Result Http.Error Json.Encode.Value -> msg) -> Http.Expect msg
+        , handleResult :
+            ConcurrentTask.ConcurrentTask x t
+            -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
+        }
+jsonResponse encoder =
+    { expectResponse = \tag -> Http.expectJson tag Json.Decode.value
+    , handleResult =
+        \impl ->
+            impl
+                |> ConcurrentTask.andThen
+                    (\value ->
+                        Backend.Interop.getResponse
+                            { status = 200
+                            , body =
+                                Json.Encode.encode 0 (encoder value)
+                                    |> Bytes.Encode.string
+                                    |> Bytes.Encode.encode
                             }
                     )
     }

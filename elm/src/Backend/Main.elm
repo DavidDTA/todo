@@ -157,32 +157,8 @@ formatUnexpectedError unexpectedError =
 
 handlers =
     Endpoint.handlers (\request -> Backend.Interop.getLegacyResponse request)
-        |> Endpoint.addHandler Api.priorities
-            (Backend.Interop.withKv
-                (\kv ->
-                    Backend.Storage.getPriorities kv
-                )
-            )
-        |> Endpoint.addHandler Api.waypoints
-            (Backend.Interop.withKv
-                (\kv ->
-                    Backend.Storage.getWaypoints kv
-                )
-                |> ConcurrentTask.map
-                    (List.map
-                        (\{ id, waypoint } ->
-                            { id = id
-                            , waypoint =
-                                { text = waypoint.text
-                                , completed = False
-                                , url = Nothing
-                                , requires = []
-                                , requiredBy = []
-                                }
-                            }
-                        )
-                    )
-            )
+        |> Endpoint.addHandler Api.priorities getPriorities
+        |> Endpoint.addHandler Api.waypoints getWaypoints
         |> Endpoint.addHandler Api.addWaypoint
             (\{ text } ->
                 Backend.Interop.withKv
@@ -223,6 +199,16 @@ handlers =
                             |> ConcurrentTask.map .result
                     )
             )
+        |> Endpoint.addHandler Api.export
+            (ConcurrentTask.map2
+                (\priorities_ waypoints_ ->
+                    { priorities = priorities_
+                    , waypoints = waypoints_
+                    }
+                )
+                getPriorities
+                getWaypoints
+            )
         |> Endpoint.mapHandlers
             (\handler request ->
                 getAuthentication request
@@ -246,6 +232,34 @@ handlers =
                     }
             )
         |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
+
+
+getPriorities =
+    Backend.Interop.withKv
+        (\kv ->
+            Backend.Storage.getPriorities kv
+        )
+
+
+getWaypoints =
+    Backend.Interop.withKv
+        (\kv ->
+            Backend.Storage.getWaypoints kv
+        )
+        |> ConcurrentTask.map
+            (List.map
+                (\{ id, waypoint } ->
+                    { id = id
+                    , waypoint =
+                        { text = waypoint.text
+                        , completed = False
+                        , url = Nothing
+                        , requires = []
+                        , requiredBy = []
+                        }
+                    }
+                )
+            )
 
 
 frontend request =

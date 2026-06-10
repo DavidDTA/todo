@@ -4,8 +4,7 @@ import { serveFile } from "@std/http/file-server";
 import * as ConcurrentTask from "@andrewmacmurray/elm-concurrent-task";
 import { randomBytes } from "node:crypto"
 import { setAuthentication } from "./auth.ts"
-import { updatePriorities } from "./priorities.ts"
-import { getAllWaypoints, deleteWaypoint, updateWaypoint } from "./waypoints.ts"
+import { getAllWaypoints } from "./waypoints.ts"
 // @ts-types="./elm/main.d.ts"
 import { Elm } from "./elm/main.js"
 
@@ -45,12 +44,8 @@ async function handle(req: Request) {
   const matchRoute = makeMatchRoute(req.url);
   const route_api_login =
     matchRoute("/-/api/login");
-  const route_api_priorities =
-    matchRoute("/-/api/priorities");
   const route_api_waypoints =
     matchRoute("/-/api/waypoints");
-  const route_api_waypoints_id =
-    matchRoute<{ id: string }>("/-/api/waypoints/:id");
   if (req.method == "POST" && route_api_login) {
     const body =
       z.object({
@@ -64,49 +59,11 @@ async function handle(req: Request) {
     const headers = new Headers();
     setAuthentication(headers, body.data.token);
     return new Response(null, { headers });
-  } else if (req.method == "PATCH" && route_api_priorities) {
-    const body =
-      z.object({
-        priorities: z.string().array().optional()
-      })
-        .strict()
-        .safeParse(await req.json());
-    if (!body.success) {
-      return new Response(null, { status: 400 });
-    }
-    const kv = await Deno.openKv();
-    await updatePriorities(kv, body.data);
-    await kv.close()
-    return new Response("");
   } else if (req.method == "GET" && route_api_waypoints) {
     const kv = await Deno.openKv();
     const waypoints = await getAllWaypoints(kv);
     await kv.close()
     return new Response(JSON.stringify({ waypoints }));
-  } else if (req.method == "DELETE" && route_api_waypoints_id) {
-    const kv = await Deno.openKv();
-    await deleteWaypoint(kv, route_api_waypoints_id.id);
-    await kv.close()
-    return new Response("");
-  } else if (req.method == "PATCH" && route_api_waypoints_id) {
-    const body =
-      z.object({
-        text: z.string().optional(),
-        completed: z.boolean().optional(),
-        url: z.string().url().nullable().optional(),
-        requires: z.string().array().optional(),
-        requiredBy: z.string().array().optional(),
-        source: z.string().optional(),
-      })
-        .strict()
-        .safeParse(await req.json());
-    if (!body.success) {
-      return new Response(null, { status: 400 });
-    }
-    const kv = await Deno.openKv();
-    await updateWaypoint(kv, route_api_waypoints_id.id, body.data);
-    await kv.close()
-    return new Response("");
   }
   return new Response(null, { status: 404 });
 }

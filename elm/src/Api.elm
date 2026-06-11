@@ -1,6 +1,7 @@
 module Api exposing
     ( Waypoint
     , WaypointId(..)
+    , Waypoints
     , addWaypoint
     , appjs
     , badRequest
@@ -43,6 +44,10 @@ type alias Waypoint =
     , requires : List WaypointId
     , requiredBy : List WaypointId
     }
+
+
+type alias Waypoints =
+    List { id : WaypointId, waypoint : Waypoint }
 
 
 wrapWaypointId =
@@ -96,9 +101,7 @@ priorities =
 waypoints =
     get
         (apiBase ++ [ Endpoint.fixed "waypoints" ])
-        { expectResponse = (jsonResponse decodeWaypoints (always Json.Encode.null)).expectResponse
-        , handleResult = opaqueResponse.handleResult
-        }
+        (bytesResponse w3_decode_Waypoints w3_encode_Waypoints)
 
 
 addWaypoint =
@@ -117,38 +120,6 @@ deleteWaypoint =
 
 type alias Priorities =
     List WaypointId
-
-
-decodeWaypoint =
-    Json.Decode.map6
-        (\id text completed url requires requiredBy -> { id = WaypointId id, waypoint = Waypoint text completed url requires requiredBy })
-        (Json.Decode.field "id" Json.Decode.string)
-        (Json.Decode.field "text" Json.Decode.string)
-        (Json.Decode.field "completed" Json.Decode.bool)
-        (Json.Decode.field "url" (Json.Decode.nullable Json.Decode.string))
-        (Json.Decode.field "requires" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
-        (Json.Decode.field "requiredBy" (Json.Decode.list (Json.Decode.map WaypointId Json.Decode.string)))
-
-
-decodeWaypoints =
-    Json.Decode.field
-        "waypoints"
-        (decodeWaypoint
-            |> Json.Decode.map (\{ id, waypoint } -> ( id, waypoint ))
-            |> Json.Decode.list
-            |> Json.Decode.andThen
-                (\list ->
-                    let
-                        dict =
-                            waypointIdKeyDict .fromList list
-                    in
-                    if waypointIdKeyDict .size dict == List.length list then
-                        Json.Decode.succeed dict
-
-                    else
-                        Json.Decode.fail "Duplicate id"
-                )
-        )
 
 
 type alias AddWaypointRequest =
@@ -254,42 +225,6 @@ bytesResponse decoder encoder =
 
                             Err error ->
                                 errorHandler error
-                    )
-    }
-
-
-jsonResponse :
-    Json.Decode.Decoder t
-    -> (t -> Json.Encode.Value)
-    ->
-        { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
-        , handleResult :
-            ConcurrentTask.ConcurrentTask x t
-            -> Backend.Interop.Request
-            -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
-        }
-jsonResponse decoder encoder =
-    { expectResponse = \tag -> Http.expectJson tag decoder
-    , handleResult =
-        \impl _ handleErrors ->
-            impl
-                |> ConcurrentTask.map Result.Ok
-                |> ConcurrentTask.onError (Result.Err >> ConcurrentTask.succeed)
-                |> ConcurrentTask.andThen
-                    (\result ->
-                        case result of
-                            Ok value ->
-                                Backend.Interop.getResponse
-                                    { status = 200
-                                    , body =
-                                        Json.Encode.encode 0 (encoder value)
-                                            |> Bytes.Encode.string
-                                            |> Bytes.Encode.encode
-                                    }
-
-                            Err error ->
-                                handleErrors error
                     )
     }
 

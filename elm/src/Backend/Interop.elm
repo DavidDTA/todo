@@ -20,8 +20,10 @@ port module Backend.Interop exposing
     , getRandom
     , getResponse
     , getUrl
+    , iteratorToList
     , kvAtomic
     , kvGet
+    , kvList
     , logError
     , receiveRequests
     , receiveTaskProgress
@@ -68,6 +70,10 @@ type KvKeyPart
 
 type AtomicOperation
     = AtomicOperation Json.Decode.Value
+
+
+type Iterator a
+    = Iterator { iterator : Json.Decode.Value, decoder : Json.Decode.Decoder a }
 
 
 type Request
@@ -230,6 +236,36 @@ kvGet (Kv kv) key =
         }
 
 
+kvList (Kv kv) prefix decoder =
+    defineTask
+        { function = "kv:list"
+        , expect =
+            ConcurrentTask.expectJson
+                (Json.Decode.value
+                    |> Json.Decode.map
+                        (\iterator ->
+                            Iterator
+                                { iterator = iterator
+                                , decoder =
+                                    Json.Decode.map3
+                                        (\key value versionstamp -> { key = key, value = value, versionstamp = versionstamp })
+                                        (Json.Decode.field "key" decodeKvKey)
+                                        (Json.Decode.field "value" Json.Decode.value)
+                                        (Json.Decode.map Versionstamp (Json.Decode.field "versionstamp" Json.Decode.string))
+                                }
+                        )
+                )
+        , args =
+            Json.Encode.object
+                [ ( "kv", kv )
+                , ( "selector"
+                  , Json.Encode.object
+                        [ ( "prefix", encodeKvKey prefix ) ]
+                  )
+                ]
+        }
+
+
 openKv =
     defineTask
         { function = "kv:open"
@@ -253,6 +289,40 @@ withKv task =
                             closeKv kv
                                 |> ConcurrentTask.return result
                         )
+            )
+
+
+iteratorNext (Iterator { iterator, decoder }) =
+    defineTask
+        { function = "iterator:next"
+        , expect =
+            ConcurrentTask.expectJson
+                (Json.Decode.field "done" Json.Decode.bool
+                    |> Json.Decode.andThen
+                        (\done ->
+                            if done then
+                                Json.Decode.succeed Nothing
+
+                            else
+                                Json.Decode.field "value" decoder
+                                    |> Json.Decode.map Just
+                        )
+                )
+        , args = iterator
+        }
+
+
+iteratorToList iterator =
+    iteratorNext iterator
+        |> ConcurrentTask.andThen
+            (\result ->
+                case result of
+                    Nothing ->
+                        ConcurrentTask.succeed []
+
+                    Just item ->
+                        iteratorToList iterator
+                            |> ConcurrentTask.map ((::) item)
             )
 
 
@@ -360,6 +430,15 @@ getLegacyResponse (Request request) =
         , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
         , args = request
         }
+
+
+decodeKvKey =
+    Json.Decode.list
+        (Json.Decode.oneOf
+            [ Json.Decode.map StringKvKeyPart Json.Decode.string
+            , Json.Decode.map OpaqueKvKeyPart Json.Decode.value
+            ]
+        )
 
 
 encodeKvKey key =

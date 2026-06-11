@@ -7,6 +7,7 @@ import Backend.Storage
 import ConcurrentTask
 import ConcurrentTask.Random
 import Endpoint
+import Errors
 import Json.Decode
 import Json.Encode
 import Platform
@@ -81,8 +82,8 @@ update msg model =
                                                 pathSegments
                                                 handlers
                                                 request
-                                                (\error ->
-                                                    formatExpectedError error
+                                                (\errors ->
+                                                    formatExpectedErrors errors
                                                         |> Backend.Interop.logError
                                                         |> ConcurrentTask.andThenDo Api.internalServerError
                                                 )
@@ -104,13 +105,24 @@ subscriptions model =
         ]
 
 
-formatExpectedError error =
-    case error of
-        Backend.Storage.KvValueDecodeError decoderError ->
-            [ Json.Encode.string "Error parsing kv key"
-            , Backend.Interop.encodeKvKey decoderError.key
-            , Json.Encode.string (Json.Decode.errorToString decoderError.error)
-            ]
+formatExpectedErrors errors =
+    Errors.toList errors
+        |> List.map
+            (\error ->
+                case error of
+                    Backend.Storage.KvUnexpectedKey key ->
+                        [ Json.Encode.string "Unexpectes kv key"
+                        , Backend.Interop.encodeKvKey key
+                        ]
+                            |> Json.Encode.list identity
+
+                    Backend.Storage.KvValueDecodeError decoderError ->
+                        [ Json.Encode.string "Error parsing kv key"
+                        , Backend.Interop.encodeKvKey decoderError.key
+                        , Json.Encode.string (Json.Decode.errorToString decoderError.error)
+                        ]
+                            |> Json.Encode.list identity
+            )
 
 
 formatUnexpectedError unexpectedError =
@@ -149,6 +161,26 @@ handlers =
                 (\kv ->
                     Backend.Storage.getPriorities kv
                 )
+            )
+        |> Endpoint.addHandler Api.waypoints
+            (Backend.Interop.withKv
+                (\kv ->
+                    Backend.Storage.getWaypoints kv
+                )
+                |> ConcurrentTask.map
+                    (List.map
+                        (\{ id, waypoint } ->
+                            { id = id
+                            , waypoint =
+                                { text = waypoint.text
+                                , completed = False
+                                , url = Nothing
+                                , requires = []
+                                , requiredBy = []
+                                }
+                            }
+                        )
+                    )
             )
         |> Endpoint.addHandler Api.addWaypoint
             (\{ text } ->

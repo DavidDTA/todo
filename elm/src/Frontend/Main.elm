@@ -73,7 +73,7 @@ type NetworkRequest
 
 
 type NetworkResponse
-    = InitWaypointsResponse (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
+    = InitWaypointsResponse (List { id : Api.WaypointId, waypoint : Api.Waypoint })
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
     | DeleteWaypointResponse Api.WaypointId {}
@@ -210,9 +210,18 @@ updateForNetworkResponse response model =
         InitWaypointsResponse value ->
             ( { model
                 | data =
-                    initData
-                        (\loading -> { loading | waypoints = Just value })
-                        model.data
+                    value
+                        |> List.map (\{ id, waypoint } -> ( id, waypoint ))
+                        |> Api.waypointIdKeyDict .fromList
+                        |> (\keyDict ->
+                                if Api.waypointIdKeyDict .size keyDict == List.length value then
+                                    initData
+                                        (\loading -> { loading | waypoints = Just keyDict })
+                                        model.data
+
+                                else
+                                    Error
+                           )
               }
             , Cmd.none
             )

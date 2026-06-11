@@ -4,7 +4,6 @@ import { serveFile } from "@std/http/file-server";
 import * as ConcurrentTask from "@andrewmacmurray/elm-concurrent-task";
 import { randomBytes } from "node:crypto"
 import { setAuthentication } from "./auth.ts"
-import { getAllWaypoints } from "./waypoints.ts"
 // @ts-types="./elm/main.d.ts"
 import { Elm } from "./elm/main.js"
 
@@ -44,8 +43,6 @@ async function handle(req: Request) {
   const matchRoute = makeMatchRoute(req.url);
   const route_api_login =
     matchRoute("/-/api/login");
-  const route_api_waypoints =
-    matchRoute("/-/api/waypoints");
   if (req.method == "POST" && route_api_login) {
     const body =
       z.object({
@@ -59,11 +56,6 @@ async function handle(req: Request) {
     const headers = new Headers();
     setAuthentication(headers, body.data.token);
     return new Response(null, { headers });
-  } else if (req.method == "GET" && route_api_waypoints) {
-    const kv = await Deno.openKv();
-    const waypoints = await getAllWaypoints(kv);
-    await kv.close()
-    return new Response(JSON.stringify({ waypoints }));
   }
   return new Response(null, { status: 404 });
 }
@@ -77,8 +69,10 @@ ConcurrentTask.register({
     "atomicOp:delete": ({ atomicOp, key }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey }) => atomicOp.delete(key),
     "atomicOp:set": ({ atomicOp, key, value }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, value: any }) => atomicOp.set(key, value),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
+    "iterator:next": (iterator: AsyncIterator<any>) => iterator.next(),
     "kv:atomic": (kv: Deno.Kv) => kv.atomic(),
     "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
+    "kv:list": ({ kv, selector }: { kv: Deno.Kv, selector: Deno.KvListSelector }) => kv.list(selector),
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
     "log:error": logError,

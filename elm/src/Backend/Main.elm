@@ -14,7 +14,7 @@ import Url
 
 
 type alias Model =
-    { taskPool : ConcurrentTask.Pool Msg Backend.Interop.Error ()
+    { taskPool : ConcurrentTask.Pool Msg Never ()
     }
 
 
@@ -24,10 +24,10 @@ type Msg
         , resolver : Backend.Interop.Resolver
         }
     | TaskProgress
-        ( ConcurrentTask.Pool Msg Backend.Interop.Error ()
+        ( ConcurrentTask.Pool Msg Never ()
         , Cmd Msg
         )
-    | TaskCompleted (ConcurrentTask.Response Backend.Interop.Error ())
+    | TaskCompleted (ConcurrentTask.Response Never ())
 
 
 type Authentication
@@ -47,17 +47,14 @@ main =
         }
 
 
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         TaskProgress ( pool, cmd ) ->
             ( { model | taskPool = pool }, cmd )
 
         TaskCompleted (ConcurrentTask.Error error) ->
-            ( model
-            , formatExpectedError error
-                |> List.map Backend.Interop.sendError
-                |> Cmd.batch
-            )
+            never error
 
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
             ( model, Backend.Interop.sendError (formatUnexpectedError error) )
@@ -80,18 +77,19 @@ update msg model =
                                             Api.badRequest
 
                                         Just pathSegments ->
-                                            Endpoint.getHandler method pathSegments handlers request
+                                            Endpoint.getHandler method
+                                                pathSegments
+                                                handlers
+                                                request
+                                                (\error ->
+                                                    formatExpectedError error
+                                                        |> Backend.Interop.logError
+                                                        |> ConcurrentTask.andThenDo Api.internalServerError
+                                                )
                         )
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
                         |> ConcurrentTask.andThen identity
-                        |> ConcurrentTask.onError
-                            (\error ->
-                                formatExpectedError error
-                                    |> List.map Backend.Interop.logError
-                                    |> ConcurrentTask.sequence
-                                    |> ConcurrentTask.andThenDo Api.internalServerError
-                            )
                         |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
@@ -108,53 +106,44 @@ subscriptions model =
 
 formatExpectedError error =
     case error of
-        Backend.Interop.JsException { function, raw } ->
-            [ { context = "JS exception in " ++ function
-              , error = raw
-              }
+        Backend.Storage.KvValueDecodeError decoderError ->
+            [ Json.Encode.string "Error parsing kv key"
+            , Backend.Interop.encodeKvKey decoderError.key
+            , Json.Encode.string (Json.Decode.errorToString decoderError.error)
             ]
-
-        Backend.Interop.ResponseDecoderFailure decoderError ->
-            [ { context = "Response decoder failure in " ++ decoderError.function
-              , error = Json.Encode.string (Json.Decode.errorToString decoderError.error)
-              }
-            ]
-
-        Backend.Interop.MultipleErrors errors ->
-            errors
-                |> List.concatMap formatExpectedError
 
 
 formatUnexpectedError unexpectedError =
     case unexpectedError of
-        ConcurrentTask.UnhandledJsException { function, raw } ->
-            { context = "Unhandled JS exception in " ++ function
-            , error = raw
-            }
+        ConcurrentTask.UnhandledJsException { function, message, raw } ->
+            [ Json.Encode.string ("Unhandled JS exception in " ++ function)
+            , Json.Encode.string message
+            , raw
+            ]
 
         ConcurrentTask.ResponseDecoderFailure { function, error } ->
-            { context = "Response decoder failure in " ++ function
-            , error = Json.Encode.string (Json.Decode.errorToString error)
-            }
+            [ Json.Encode.string ("Response decoder failure in " ++ function)
+            , Json.Encode.string (Json.Decode.errorToString error)
+            ]
 
         ConcurrentTask.ErrorsDecoderFailure { function, error } ->
-            { context = "Errors decoder failure in " ++ function
-            , error = Json.Encode.string (Json.Decode.errorToString error)
-            }
+            [ Json.Encode.string ("Errors decoder failure in " ++ function)
+            , Json.Encode.string (Json.Decode.errorToString error)
+            ]
 
         ConcurrentTask.MissingFunction error ->
-            { context = "Missing function"
-            , error = Json.Encode.string error
-            }
+            [ Json.Encode.string "Missing function"
+            , Json.Encode.string error
+            ]
 
         ConcurrentTask.InternalError error ->
-            { context = "ConcurrentTask internal error"
-            , error = Json.Encode.string error
-            }
+            [ Json.Encode.string "ConcurrentTask internal error"
+            , Json.Encode.string error
+            ]
 
 
 handlers =
-    Endpoint.handlers Backend.Interop.getLegacyResponse
+    Endpoint.handlers (\request _ -> Backend.Interop.getLegacyResponse request)
         |> Endpoint.addHandler Api.priorities
             (Backend.Interop.withKv
                 (\kv ->
@@ -202,7 +191,7 @@ handlers =
                     )
             )
         |> Endpoint.mapHandlers
-            (\handler request ->
+            (\handler request handleErrors ->
                 getAuthentication request
                     |> ConcurrentTask.andThen
                         (\maybeAuth ->
@@ -211,7 +200,7 @@ handlers =
                                     Api.forbidden
 
                                 Just auth ->
-                                    handler request
+                                    handler request handleErrors
                         )
             )
         |> Endpoint.addHandler Api.home frontend
@@ -223,7 +212,7 @@ handlers =
                     , filename = "files/app.js"
                     }
             )
-        |> Endpoint.addHandler Api.login (always Backend.Interop.getLegacyResponse)
+        |> Endpoint.addHandler Api.login (\request _ -> Backend.Interop.getLegacyResponse request)
 
 
 frontend request =

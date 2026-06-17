@@ -36,8 +36,8 @@ function makeMatchRoute(url: string) {
   };
 }
 
-function logError(context: string, error: any) {
-  console.log(context + ":", error)
+function logError(items : any[]) {
+  console.error(...items)
 }
 
 async function handle(req: Request) {
@@ -81,7 +81,7 @@ ConcurrentTask.register({
     "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
-    "log:error": ({ context, error }: { context: string, error: any }) => logError(context, error),
+    "log:error": logError,
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
     "req:getMethod": (request: Request) => request.method,
@@ -98,9 +98,7 @@ ConcurrentTask.register({
   },
 });
 
-app.ports.errors.subscribe(({ context, error }) => {
-  logError(context, error)
-});
+app.ports.errors.subscribe(logError);
 
 Deno.serve(async (request) => {
   return await new Promise((resolve) => {

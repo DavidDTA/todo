@@ -14,7 +14,7 @@ export const Elm: {
           requests: portToElm<{ request: Request, resolver: resolver }>,
           taskRequests: portFromElm<any>,
           taskResponses: portToElm<any>,
-          errors: portFromElm<{ context: string, error: any }>,
+          errors: portFromElm<any[]>,
         }
       }
     }

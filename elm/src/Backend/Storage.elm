@@ -1,5 +1,6 @@
 module Backend.Storage exposing
-    ( addWaypoint
+    ( Error(..)
+    , addWaypoint
     , deleteWaypoint
     , getPriorities
     )
@@ -11,28 +12,42 @@ import Json.Decode
 import Json.Encode
 
 
+type Error
+    = KvValueDecodeError { key : List Backend.Interop.KvKeyPart, error : Json.Decode.Error }
+
+
 getPriorities kv =
-    Backend.Interop.kvGet kv keys.priorities decodePriorities
-        |> ConcurrentTask.map
-            (\result ->
-                case result of
-                    Nothing ->
-                        []
-
-                    Just { value } ->
-                        value
-            )
+    kvGet kv keys.priorities decodePriorities
+        |> ConcurrentTask.map (Maybe.withDefault [])
 
 
-addWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask Backend.Interop.Error ()
+addWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
 addWaypoint op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
         |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = Json.Encode.object [ ( "text", Json.Encode.string text ) ] })
 
 
-deleteWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask Backend.Interop.Error ()
+deleteWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask x ()
 deleteWaypoint op id =
     Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
+
+
+kvGet kv key decoder =
+    Backend.Interop.kvGet kv key
+        |> ConcurrentTask.andThen
+            (\result ->
+                case result of
+                    Nothing ->
+                        ConcurrentTask.succeed Nothing
+
+                    Just { value } ->
+                        case Json.Decode.decodeValue decoder value of
+                            Ok decoded ->
+                                ConcurrentTask.succeed (Just decoded)
+
+                            Err err ->
+                                ConcurrentTask.fail (KvValueDecodeError { key = key, error = err })
+            )
 
 
 decodePriorities =
@@ -40,6 +55,10 @@ decodePriorities =
 
 
 keys =
-    { priorities = [ "priorities" ]
-    , waypoint = \id -> [ "waypoints", Api.unwrapWaypointId id ]
+    { priorities = [ Backend.Interop.StringKvKeyPart "priorities" ]
+    , waypoint =
+        \id ->
+            [ Backend.Interop.StringKvKeyPart "waypoints"
+            , Backend.Interop.StringKvKeyPart (Api.unwrapWaypointId id)
+            ]
     }

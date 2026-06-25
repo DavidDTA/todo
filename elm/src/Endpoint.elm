@@ -22,10 +22,6 @@ import String
 import Url
 
 
-type Available
-    = Available
-
-
 type PathComponent
     = Fixed String
     | Wildcard
@@ -49,12 +45,12 @@ wildcard =
 
 
 endpoint : String -> List PathComponent -> { request : String -> List String -> req, response : res } -> Endpoint req res
-endpoint method path r =
+endpoint method path config =
     Endpoint
         { method = method
         , path = path
         , request =
-            r.request method
+            config.request method
                 (List.map
                     (\pathSegment ->
                         case pathSegment of
@@ -66,7 +62,7 @@ endpoint method path r =
                     )
                     path
                 )
-        , response = r.response
+        , response = config.response
         }
 
 

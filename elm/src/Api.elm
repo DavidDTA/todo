@@ -141,7 +141,7 @@ type alias DeleteWaypointResponse =
 emptyRequest =
     { applyBody = \fn method path -> fn method path Http.emptyBody
     , handleBody =
-        \task request handleErrors continue ->
+        \task continue request handleErrors ->
             Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
                     (\body ->
@@ -156,7 +156,7 @@ emptyRequest =
 
 opaqueRequest =
     { applyBody = identity
-    , handleBody = \task request handleErrors handleResult -> handleResult (task request) request handleErrors
+    , handleBody = \task handleResult request handleErrors -> handleResult (task request) request handleErrors
     }
 
 
@@ -173,15 +173,15 @@ bytesRequest :
             -> Cmd msg
         , handleBody :
             (r -> ConcurrentTask.ConcurrentTask x t)
+            -> (ConcurrentTask.ConcurrentTask x t -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
             -> Backend.Interop.Request
             -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> (ConcurrentTask.ConcurrentTask x t -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
             -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
         }
 bytesRequest decoder encoder =
     { applyBody = \fn method path value -> fn method path (Http.bytesBody "application/octet-stream" (Bytes.Encode.encode (encoder value)))
     , handleBody =
-        \task request handleErrors handleResult ->
+        \task handleResult request handleErrors ->
             Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
                     (\body ->
@@ -261,9 +261,9 @@ post :
             -> Cmd msg
         , handleBody :
             impl
+            -> (impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
             -> Backend.Interop.Request
             -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> (impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
             -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
         }
     ->
@@ -289,18 +289,16 @@ endpoint :
         -> req
     , handleBody :
         impl
-        -> Backend.Interop.Request
-        -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-        -> (impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-        -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        -> (impl2 -> handler)
+        -> handler
     }
     ->
         { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
-        , handleResult : impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        , handleResult : impl2 -> handler
         }
     ->
         { request : req
-        , response : impl -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        , response : impl -> handler
         }
 endpoint { applyBody, handleBody } { expectResponse, handleResult } =
     { request =
@@ -317,8 +315,8 @@ endpoint { applyBody, handleBody } { expectResponse, handleResult } =
                     }
             )
     , response =
-        \task request handleErrors ->
-            handleBody task request handleErrors handleResult
+        \task ->
+            handleBody task handleResult
     }
 
 

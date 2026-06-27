@@ -9,6 +9,7 @@ module Endpoint exposing
     , handlers
     , joinPath
     , mapHandlers
+    , mapResponse
     , request
     , splitPath
     , wildcard
@@ -68,6 +69,15 @@ endpoint method path config =
 
 request (Endpoint e) =
     e.request
+
+
+mapResponse fn (Endpoint e) =
+    Endpoint
+        { method = e.method
+        , path = e.path
+        , request = e.request
+        , response = fn e.response
+        }
 
 
 type Handlers response

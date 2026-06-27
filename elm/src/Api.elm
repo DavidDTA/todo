@@ -141,22 +141,22 @@ type alias DeleteWaypointResponse =
 emptyRequest =
     { applyBody = \fn method path -> fn method path Http.emptyBody
     , handleBody =
-        \task continue request handleErrors ->
+        \request ->
             Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
                     (\body ->
                         if Bytes.width body == 0 then
-                            continue task request handleErrors
+                            ConcurrentTask.succeed ()
 
                         else
-                            badRequest
+                            ConcurrentTask.fail ()
                     )
     }
 
 
 opaqueRequest =
     { applyBody = identity
-    , handleBody = \task handleResult request handleErrors -> handleResult (task request) request handleErrors
+    , handleBody = ConcurrentTask.succeed
     }
 
 
@@ -172,25 +172,21 @@ bytesRequest :
             -> (Result Http.Error t -> msg)
             -> Cmd msg
         , handleBody :
-            (r -> ConcurrentTask.ConcurrentTask x t)
-            -> (ConcurrentTask.ConcurrentTask x t -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> Backend.Interop.Request
-            -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+            Backend.Interop.Request -> ConcurrentTask.ConcurrentTask () r
         }
 bytesRequest decoder encoder =
     { applyBody = \fn method path value -> fn method path (Http.bytesBody "application/octet-stream" (Bytes.Encode.encode (encoder value)))
     , handleBody =
-        \task handleResult request handleErrors ->
+        \request ->
             Backend.Interop.getBody request
                 |> ConcurrentTask.andThen
                     (\body ->
                         case Bytes.Decode.decode decoder body of
                             Just value ->
-                                handleResult (task value) request handleErrors
+                                ConcurrentTask.succeed value
 
                             Nothing ->
-                                badRequest
+                                ConcurrentTask.fail ()
                     )
     }
 
@@ -247,6 +243,7 @@ get :
             (impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
 get path response =
     Endpoint.endpoint "GET" path (endpoint emptyRequest response)
+        |> Endpoint.mapResponse (\responder impl -> responder (always impl))
 
 
 post :
@@ -260,11 +257,7 @@ post :
             -> (Result Http.Error t -> msg)
             -> Cmd msg
         , handleBody :
-            impl
-            -> (impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> Backend.Interop.Request
-            -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+            Backend.Interop.Request -> ConcurrentTask.ConcurrentTask xr r2
         }
     ->
         { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
@@ -273,7 +266,7 @@ post :
     ->
         Endpoint.Endpoint
             (r -> (Result Http.Error t -> msg) -> Cmd msg)
-            (impl -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
+            ((r2 -> impl2) -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
 post path request response =
     Endpoint.endpoint "POST" path (endpoint request response)
 
@@ -288,17 +281,15 @@ endpoint :
         )
         -> req
     , handleBody :
-        impl
-        -> (impl2 -> handler)
-        -> handler
+        Backend.Interop.Request -> ConcurrentTask.ConcurrentTask xr r2
     }
     ->
         { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
-        , handleResult : impl2 -> handler
+        , handleResult : impl2 -> Backend.Interop.Request -> (x2 -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
         }
     ->
         { request : req
-        , response : impl -> handler
+        , response : (r2 -> impl2) -> Backend.Interop.Request -> (x2 -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
         }
 endpoint { applyBody, handleBody } { expectResponse, handleResult } =
     { request =
@@ -315,8 +306,20 @@ endpoint { applyBody, handleBody } { expectResponse, handleResult } =
                     }
             )
     , response =
-        \task ->
-            handleBody task handleResult
+        \task request handleErrors ->
+            handleBody request
+                |> ConcurrentTask.map Ok
+                |> ConcurrentTask.mapError Err
+                |> ConcurrentTask.onError ConcurrentTask.succeed
+                |> ConcurrentTask.andThen
+                    (\r ->
+                        case r of
+                            Ok value ->
+                                handleResult (task value) request handleErrors
+
+                            Err _ ->
+                                badRequest
+                    )
     }
 
 

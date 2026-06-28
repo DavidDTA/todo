@@ -61,16 +61,19 @@ unwrapWaypointId (WaypointId s) =
 home =
     get [ Endpoint.fixed "" ]
         opaqueResponse
+        |> withRequest
 
 
 detail =
     get [ Endpoint.fixed "detail", Endpoint.wildcard ]
         opaqueResponse
+        |> withRequest
 
 
 appjs =
     get [ Endpoint.fixed "-", Endpoint.fixed "app.js" ]
         opaqueResponse
+        |> withRequest
 
 
 apiBase =
@@ -89,8 +92,7 @@ priorities :
         ((Result Http.Error (List WaypointId) -> msg) -> Cmd msg)
         (ConcurrentTask.ConcurrentTask x (List WaypointId)
          -> Backend.Interop.Request
-         -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-         -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+         -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         )
 priorities =
     get
@@ -136,6 +138,10 @@ type alias DeleteWaypointRequest =
 
 type alias DeleteWaypointResponse =
     {}
+
+
+withRequest =
+    Endpoint.mapResponse (\handler impl request -> handler (impl request) request)
 
 
 emptyRequest =
@@ -198,36 +204,27 @@ bytesResponse :
         { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
         , handleResult :
             ConcurrentTask.ConcurrentTask x t
-            -> Backend.Interop.Request
-            -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
-            -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+            -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         }
 bytesResponse decoder encoder =
     { expectResponse = \tag -> Http.expectBytes tag decoder
     , handleResult =
-        \impl _ errorHandler ->
+        \impl ->
             impl
-                |> ConcurrentTask.map Result.Ok
-                |> ConcurrentTask.onError (Result.Err >> ConcurrentTask.succeed)
                 |> ConcurrentTask.andThen
-                    (\result ->
-                        case result of
-                            Ok value ->
-                                Backend.Interop.getResponse
-                                    { status = 200
-                                    , body =
-                                        Bytes.Encode.encode (encoder value)
-                                    }
-
-                            Err error ->
-                                errorHandler error
+                    (\value ->
+                        Backend.Interop.getResponse
+                            { status = 200
+                            , body =
+                                Bytes.Encode.encode (encoder value)
+                            }
                     )
     }
 
 
 opaqueResponse =
     { expectResponse = Http.expectWhatever
-    , handleResult = \impl req handleErrors -> impl req
+    , handleResult = identity
     }
 
 
@@ -235,12 +232,12 @@ get :
     List Endpoint.PathComponent
     ->
         { expectResponse : (Result Http.Error response -> msg) -> Http.Expect msg
-        , handleResult : impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        , handleResult : impl2 -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         }
     ->
         Endpoint.Endpoint
             ((Result Http.Error response -> msg) -> Cmd msg)
-            (impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
+            (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response)
 get path response =
     Endpoint.endpoint "GET" path (endpoint emptyRequest response)
         |> Endpoint.mapResponse (\responder impl -> responder (always impl))
@@ -261,12 +258,12 @@ post :
         }
     ->
         { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
-        , handleResult : impl2 -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        , handleResult : impl2 -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         }
     ->
         Endpoint.Endpoint
             (r -> (Result Http.Error t -> msg) -> Cmd msg)
-            ((r2 -> impl2) -> Backend.Interop.Request -> (x -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response)
+            ((r2 -> impl2) -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response)
 post path request response =
     Endpoint.endpoint "POST" path (endpoint request response)
 
@@ -285,11 +282,11 @@ endpoint :
     }
     ->
         { expectResponse : (Result Http.Error t -> msg) -> Http.Expect msg
-        , handleResult : impl2 -> Backend.Interop.Request -> (x2 -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        , handleResult : impl2 -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         }
     ->
         { request : req
-        , response : (r2 -> impl2) -> Backend.Interop.Request -> (x2 -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response) -> ConcurrentTask.ConcurrentTask Never Backend.Interop.Response
+        , response : (r2 -> impl2) -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         }
 endpoint { applyBody, handleBody } { expectResponse, handleResult } =
     { request =
@@ -306,7 +303,7 @@ endpoint { applyBody, handleBody } { expectResponse, handleResult } =
                     }
             )
     , response =
-        \task request handleErrors ->
+        \task request ->
             handleBody request
                 |> ConcurrentTask.map Ok
                 |> ConcurrentTask.mapError Err
@@ -315,7 +312,7 @@ endpoint { applyBody, handleBody } { expectResponse, handleResult } =
                     (\r ->
                         case r of
                             Ok value ->
-                                handleResult (task value) request handleErrors
+                                handleResult (task value)
 
                             Err _ ->
                                 badRequest

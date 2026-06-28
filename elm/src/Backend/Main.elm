@@ -82,15 +82,16 @@ update msg model =
                                                 pathSegments
                                                 handlers
                                                 request
-                                                (\errors ->
-                                                    formatExpectedErrors errors
-                                                        |> Backend.Interop.logError
-                                                        |> ConcurrentTask.andThenDo Api.internalServerError
-                                                )
                         )
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
                         |> ConcurrentTask.andThen identity
+                        |> ConcurrentTask.onError
+                            (\errors ->
+                                formatExpectedErrors errors
+                                    |> Backend.Interop.logError
+                                    |> ConcurrentTask.andThenDo Api.internalServerError
+                            )
                         |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
@@ -155,7 +156,7 @@ formatUnexpectedError unexpectedError =
 
 
 handlers =
-    Endpoint.handlers (\request _ -> Backend.Interop.getLegacyResponse request)
+    Endpoint.handlers (\request -> Backend.Interop.getLegacyResponse request)
         |> Endpoint.addHandler Api.priorities
             (Backend.Interop.withKv
                 (\kv ->
@@ -223,7 +224,7 @@ handlers =
                     )
             )
         |> Endpoint.mapHandlers
-            (\handler request handleErrors ->
+            (\handler request ->
                 getAuthentication request
                     |> ConcurrentTask.andThen
                         (\maybeAuth ->
@@ -232,7 +233,7 @@ handlers =
                                     Api.forbidden
 
                                 Just auth ->
-                                    handler request handleErrors
+                                    handler request
                         )
             )
         |> Endpoint.addHandler Api.home frontend
@@ -244,7 +245,7 @@ handlers =
                     , filename = "files/app.js"
                     }
             )
-        |> Endpoint.addHandler Api.login (\request _ -> Backend.Interop.getLegacyResponse request)
+        |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
 
 
 frontend request =

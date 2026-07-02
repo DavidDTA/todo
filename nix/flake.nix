@@ -2,7 +2,7 @@
   description = "";
 
   inputs.nixpkgs.url = github:NixOS/nixpkgs/nixpkgs-unstable;
-  inputs.miscellaneous.url = github:DavidDTA/miscellaneous/master;
+  inputs.miscellaneous.url = github:DavidDTA/miscellaneous/main?dir=nix;
 
   outputs = { self, nixpkgs, miscellaneous }:
     let
@@ -12,23 +12,27 @@
       devShells =
         nixpkgs.lib.attrsets.genAttrs systems (system:
           let
-            nixpkgs' = nixpkgs.legacyPackages.${system};
-            callPackage = nixpkgs'.newScope(miscellaneous.packages.${system} // myPkgs) ;
-            myPkgs =
-              nixpkgs.lib.attrsets.concatMapAttrs
-                (filename: type:
-                  if type == "regular" && nixpkgs.lib.hasSuffix ".nix" filename then
-                   { ${nixpkgs.lib.removeSuffix ".nix" filename} = callPackage ./flake/packages/${filename} { }; }
-                  else
-                    {}
-                )
-                (builtins.readDir ./flake/packages);
+            nixpkgs' = import nixpkgs {
+              inherit system;
+              overlays = [
+                miscellaneous.overlay
+                (final: prev: miscellaneous.lib.mkPackages {
+                  nixpkgs = final;
+                  packages = ./packages;
+                })
+              ];
+            };
           in
           {
             default =
               nixpkgs'.mkShell {
-                packages =
-                  builtins.attrValues myPkgs ++ [
+                packages = [
+                  nixpkgs'.backup
+                  nixpkgs'.deploy
+                  nixpkgs'.devserver
+                  nixpkgs'.devwatch
+                  nixpkgs'.format
+                  nixpkgs'.quickfix
                   nixpkgs'.deno
                   nixpkgs'.elmPackages.lamdera
                 ];

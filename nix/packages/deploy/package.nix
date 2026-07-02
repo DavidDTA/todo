@@ -1,15 +1,22 @@
-{ bash, build, deno, git, writeScriptBin }:
-    writeScriptBin "deploy" ''
-      #! ${bash}/bin/bash
-      set -Eeuo pipefail
-      project="''${1:-}"
-      if [ -z "''${project}" ]; then
-        echo "You must specify a project as the first positional argument. Here are your existing projects:"
-        ${deno}/bin/deno run --allow-sys --allow-env --allow-read --allow-write=deno.json --allow-write=~/.deno --allow-net jsr:@deno/deployctl projects list
+{ bash, build, coreutils, deno, git, writeShellApplication }:
+  writeShellApplication {
+    name = "deploy";
+    inheritPath = false;
+    runtimeInputs = [
+      build
+      coreutils
+      deno
+    ];
+    text = ''
+      if [ "''${#}" != 3 ]; then
+        echo "usage: deploy <token> <org> <app>"
         exit 1
       fi
+      token="''${1}"
+      org="''${2}"
+      app="''${3}"
       outdir="$(pwd)/build/deploy"
-      "${build}/bin/build" "''${outdir}" "prod"
-      (cd "''${outdir}/server" && ${deno}/bin/deno run --allow-sys --allow-env --allow-read --allow-write=deno.json --allow-write=~/.deno/deployctl --allow-net jsr:@deno/deployctl deploy --save-config --project "''${project}")
-      ${git}/bin/git diff --no-index -- backend/deno.json ''${outdir}/server/deno.json
-    ''
+      build "''${outdir}" "prod"
+      (cd "''${outdir}/server" && deno deploy --non-interactive --token "''${token}" --org "''${org}" --app "''${app}" --prod)
+    '';
+  }

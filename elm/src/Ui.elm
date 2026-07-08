@@ -79,7 +79,7 @@ heading text_ =
 list items =
     items
         |> List.map
-            (\{ content, highlight, bullet, targetUrl } ->
+            (\{ content, highlight, bullet, strikethrough, targetUrl } ->
                 let
                     container =
                         case targetUrl of
@@ -121,6 +121,13 @@ list items =
 
                                 Just Diminished ->
                                     Css.rgb 192 192 192
+                            )
+                        , Css.textDecoration
+                            (if strikethrough then
+                                Css.lineThrough
+
+                             else
+                                Css.none
                             )
                         ]
                         |> Just

@@ -743,15 +743,22 @@ viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph,
                                                             , completed = waypoint.completed
                                                             , highlight = highlight
                                                             , id = id
+                                                            , priority = List.member id priorities
                                                             , url = waypoint.url
                                                             }
 
                                                     Nothing ->
                                                         viewWaypointRowPrimitive
                                                             { text = Strings.unknownWaypoint
-                                                            , icon = "﹖"
+                                                            , icon =
+                                                                if List.member id priorities then
+                                                                    "☆"
+
+                                                                else
+                                                                    ""
                                                             , id = id
                                                             , highlight = highlight
+                                                            , strikethrough = False
                                                             , url = Nothing
                                                             }
                                                 )
@@ -789,6 +796,7 @@ viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph,
                         Hidden { total } ->
                             { bullet = Nothing
                             , highlight = Just Ui.diminished
+                            , strikethrough = False
                             , targetUrl = Nothing
                             , content =
                                 Ui.text (consts.strings.skippedItems total)
@@ -889,24 +897,26 @@ squeeze priorities sccNodeIds graph =
         |> List.reverse
 
 
-viewWaypointRow { completed, highlight, id, text, url } =
+viewWaypointRow { completed, highlight, id, priority, text, url } =
     viewWaypointRowPrimitive
         { text = text
         , icon =
-            if completed then
-                "☑"
+            if priority then
+                "☆"
 
             else
-                "☐"
+                ""
         , id = id
         , highlight = highlight
+        , strikethrough = completed
         , url = url
         }
 
 
-viewWaypointRowPrimitive { highlight, icon, id, text, url } =
+viewWaypointRowPrimitive { highlight, icon, id, strikethrough, text, url } =
     { bullet = Just icon
     , highlight = highlight
+    , strikethrough = strikethrough
     , targetUrl = Just (Endpoint.joinPath [ "detail", Api.unwrapWaypointId id ])
     , content =
         Ui.text text

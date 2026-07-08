@@ -1,6 +1,7 @@
 module Ui exposing
     ( append
     , button
+    , concat
     , conflict
     , diminished
     , empty
@@ -61,6 +62,10 @@ empty =
 
 append (Flow back) (Flow front) =
     Flow (front ++ back)
+
+
+concat flows =
+    Flow (List.concatMap (\(Flow flow) -> flow) flows)
 
 
 heading text_ =

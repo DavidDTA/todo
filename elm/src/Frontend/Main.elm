@@ -455,11 +455,10 @@ viewOops reason =
             (case reason of
                 UnknownPath ->
                     consts.strings.unknownPath
-                        (\beginning link end ->
-                            Ui.text beginning
-                                |> Ui.append (Ui.link "/" (Just link))
-                                |> Ui.append (Ui.text end)
-                        )
+                        { normal = Ui.text
+                        , link = Just >> Ui.link "/"
+                        }
+                        |> Ui.concat
 
                 DataError ->
                     Ui.text consts.strings.dataError
@@ -824,7 +823,12 @@ consts =
         { add = "+"
         , delete = "⨉"
         , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
-        , unknownPath = \combine -> combine "You wound up somewhere unexpected. " "Click here" " to go back home."
+        , unknownPath =
+            \{ normal, link } ->
+                [ normal "You wound up somewhere unexpected. "
+                , link "Click here"
+                , normal " to go back home."
+                ]
         , dataError = "Something unexpexted happened when loading your data."
         }
     }

@@ -1,9 +1,11 @@
 module Backend.Storage exposing
     ( PrioritiesListError(..)
+    , WaypointSetCompletedError(..)
     , WaypointsListError(..)
     , prioritiesList
     , waypointAdd
     , waypointDelete
+    , waypointSetCompleted
     , waypointsList
     )
 
@@ -25,20 +27,43 @@ type PrioritiesListError
     = PrioritiesListDecodeError Json.Decode.Error
 
 
+type WaypointSetCompletedError
+    = WaypointSetCompletedMissingWaypoint
+    | WaypointSetCompletedDecodeError Json.Decode.Error
+
+
 prioritiesList kv =
     kvGet kv keys.priorities decodePriorities PrioritiesListDecodeError
-        |> ConcurrentTask.map (Maybe.withDefault [])
+        |> ConcurrentTask.map (Maybe.map .value >> Maybe.withDefault [])
 
 
 waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
 waypointAdd op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
-        |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = Json.Encode.object [ ( "text", Json.Encode.string text ) ] })
+        |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = encodeWaypoint { text = text, completed = False } })
 
 
 waypointDelete : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask x ()
 waypointDelete op id =
     Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
+
+
+waypointSetCompleted kv op id completed =
+    let
+        key =
+            keys.waypoint id
+    in
+    kvGet kv key decodeWaypoint WaypointSetCompletedDecodeError
+        |> ConcurrentTask.andThen
+            (\entry ->
+                case entry of
+                    Nothing ->
+                        ConcurrentTask.fail WaypointSetCompletedMissingWaypoint
+
+                    Just { versionstamp, value } ->
+                        Backend.Interop.atomicOpCheck op { key = key, versionstamp = Just versionstamp }
+                            |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = key, value = encodeWaypoint { value | completed = completed } })
+            )
 
 
 kvGet kv key decoder tagError =
@@ -49,10 +74,10 @@ kvGet kv key decoder tagError =
                     Nothing ->
                         ConcurrentTask.succeed Nothing
 
-                    Just { value } ->
+                    Just { value, versionstamp } ->
                         case Json.Decode.decodeValue decoder value of
                             Ok decoded ->
-                                ConcurrentTask.succeed (Just decoded)
+                                ConcurrentTask.succeed (Just { value = decoded, versionstamp = versionstamp })
 
                             Err err ->
                                 ConcurrentTask.fail (tagError err)
@@ -97,9 +122,19 @@ decodePriorities =
 
 
 decodeWaypoint =
-    Json.Decode.map
-        (\text -> { text = text })
+    Json.Decode.map2
+        (\text completed -> { text = text, completed = completed })
         (Json.Decode.field "text" Json.Decode.string)
+        (optionalField "completed" Json.Decode.bool
+            |> Json.Decode.map (Maybe.withDefault False)
+        )
+
+
+encodeWaypoint { text, completed } =
+    Json.Encode.object
+        [ ( "text", Json.Encode.string text )
+        , ( "completed", Json.Encode.bool completed )
+        ]
 
 
 optionalField name decoder =
@@ -110,7 +145,7 @@ optionalField name decoder =
         |> Json.Decode.andThen
             (\isPresent ->
                 if isPresent then
-                    Json.Decode.map Just decoder
+                    Json.Decode.map Just (Json.Decode.field name decoder)
 
                 else
                     Json.Decode.succeed Nothing

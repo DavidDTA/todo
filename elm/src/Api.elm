@@ -15,6 +15,7 @@ module Api exposing
     , waypointAdd
     , waypointDelete
     , waypointIdKeyDict
+    , waypointSetCompleted
     , waypoints
     , wrapWaypointId
     )
@@ -150,6 +151,13 @@ waypointDelete =
         (bytesResponse w3_decode_WaypoinyDeleteResponse w3_encode_WaypoinyDeleteResponse)
 
 
+waypointSetCompleted =
+    post
+        (apiBase ++ [ Endpoint.fixed "waypoint-set-completed" ])
+        (bytesRequest w3_decode_WaypointSetCompletedRequest w3_encode_WaypointSetCompletedRequest)
+        (bytesResponse w3_decode_WaypointSetCompletedResponse w3_encode_WaypointSetCompletedResponse)
+
+
 type alias Priorities =
     List WaypointId
 
@@ -167,6 +175,16 @@ type alias WaypointDeleteRequest =
 
 
 type alias WaypoinyDeleteResponse =
+    {}
+
+
+type alias WaypointSetCompletedRequest =
+    { id : WaypointId
+    , completed : Bool
+    }
+
+
+type alias WaypointSetCompletedResponse =
     {}
 
 

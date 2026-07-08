@@ -37,6 +37,7 @@ type Authentication
 
 type Error
     = InternalError { log : List Json.Decode.Value }
+    | NotAuthorized { log : List Json.Decode.Value }
 
 
 main =
@@ -107,6 +108,10 @@ subscriptions model =
 
 handleError error =
     case error of
+        NotAuthorized { log } ->
+            Backend.Interop.logError log
+                |> ConcurrentTask.andThenDo Api.forbidden
+
         InternalError { log } ->
             Backend.Interop.logError log
                 |> ConcurrentTask.andThenDo Api.internalServerError
@@ -185,6 +190,7 @@ handlers =
                             |> ConcurrentTask.map .result
                     )
             )
+        |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
         |> Endpoint.addHandler Api.export
             (ConcurrentTask.map2
                 (\priorities_ waypoints_ ->
@@ -249,7 +255,7 @@ getWaypoints =
                     { id = id
                     , waypoint =
                         { text = waypoint.text
-                        , completed = False
+                        , completed = waypoint.completed
                         , url = Nothing
                         , requires = []
                         , requiredBy = []
@@ -278,6 +284,37 @@ getWaypoints =
                                                 ]
                                 )
                     }
+            )
+
+
+waypointSetCompleted { id, completed } =
+    Backend.Interop.withKv
+        (\kv ->
+            transact kv
+                (\op ->
+                    Backend.Storage.waypointSetCompleted kv op id completed
+                        |> ConcurrentTask.return {}
+                )
+                |> ConcurrentTask.map .result
+        )
+        |> ConcurrentTask.mapError
+            (\error ->
+                case error of
+                    Backend.Storage.WaypointSetCompletedMissingWaypoint ->
+                        NotAuthorized
+                            { log =
+                                [ Json.Encode.string
+                                    ("No waypoint to update: " ++ Api.unwrapWaypointId id)
+                                ]
+                            }
+
+                    Backend.Storage.WaypointSetCompletedDecodeError decodeError ->
+                        InternalError
+                            { log =
+                                [ Json.Encode.string ("Error decoding waypoint " ++ Api.unwrapWaypointId id)
+                                , Json.Encode.string (Json.Decode.errorToString decodeError)
+                                ]
+                            }
             )
 
 

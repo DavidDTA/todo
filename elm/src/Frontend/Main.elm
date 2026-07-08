@@ -61,12 +61,14 @@ type Msg
 
 type UserAction
     = ClickAddWaypoint
+    | ClickCompleteWaypoint Api.WaypointId
     | ClickDeleteWaypoint Api.WaypointId
     | ChangeInput String
 
 
 type NetworkRequest
     = AddWaypoint { text : String }
+    | SetWaypointCompleted { id : Api.WaypointId, completed : Bool }
     | DeleteWaypoint { id : Api.WaypointId }
     | InitWaypoints
     | InitPriorities
@@ -77,6 +79,7 @@ type NetworkResponse
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
     | DeleteWaypointResponse Api.WaypointId {}
+    | SetWaypointCompletedResponse { id : Api.WaypointId, completed : Bool } {}
 
 
 type OopsReason
@@ -173,6 +176,30 @@ update msg model =
                     )
                         |> makeNetworkRequest (AddWaypoint { text = model.input })
 
+                ClickCompleteWaypoint id ->
+                    let
+                        wqypoint =
+                            case model.data of
+                                Loading _ ->
+                                    Nothing
+
+                                Error ->
+                                    Nothing
+
+                                Data { waypoints } ->
+                                    Api.waypointIdKeyDict .get id waypoints
+
+                        makeRequest =
+                            case wqypoint of
+                                Nothing ->
+                                    identity
+
+                                Just { completed } ->
+                                    makeNetworkRequest (SetWaypointCompleted { id = id, completed = not completed })
+                    in
+                    ( model, Cmd.none )
+                        |> makeRequest
+
                 ClickDeleteWaypoint id ->
                     ( { model
                         | screen =
@@ -247,6 +274,20 @@ updateForNetworkResponse response model =
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
                             , waypoints = Api.waypointIdKeyDict .remove id waypoints
+                            }
+                        )
+                        model.data
+              }
+            , Cmd.none
+            )
+
+        SetWaypointCompletedResponse { id, completed } {} ->
+            ( { model
+                | data =
+                    updateData
+                        (\{ priorities, waypoints } ->
+                            { priorities = priorities
+                            , waypoints = Api.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | completed = completed })) waypoints
                             }
                         )
                         model.data
@@ -514,9 +555,18 @@ viewDetail ({ waypoints } as data) waypointId =
         Nothing ->
             viewOops UnknownPath
 
-        Just { text } ->
+        Just { text, completed } ->
             Ui.heading text
                 |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) consts.strings.delete)
+                |> Ui.append
+                    (Ui.button (ClickCompleteWaypoint waypointId)
+                        (if completed then
+                            consts.strings.complete
+
+                         else
+                            consts.strings.incomplete
+                        )
+                    )
                 |> Ui.append (viewWaypoints (Just waypointId) (always True) data)
 
 
@@ -789,6 +839,9 @@ requestToCmd token request =
         AddWaypoint r ->
             Endpoint.request Api.waypointAdd r (tagWith AddWaypointResponse)
 
+        SetWaypointCompleted r ->
+            Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
+
         DeleteWaypoint r ->
             Endpoint.request Api.waypointDelete r (tagWith (DeleteWaypointResponse r.id))
 
@@ -803,6 +856,9 @@ requestSafety request =
     case request of
         AddWaypoint _ ->
             NetworkQueue.Unsafe
+
+        SetWaypointCompleted _ ->
+            NetworkQueue.Idempotent
 
         DeleteWaypoint _ ->
             NetworkQueue.Idempotent
@@ -822,6 +878,8 @@ consts =
     { strings =
         { add = "+"
         , delete = "⨉"
+        , complete = "☑"
+        , incomplete = "☐"
         , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
         , unknownPath =
             \{ normal, link } ->

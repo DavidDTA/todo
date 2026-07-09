@@ -787,10 +787,10 @@ requestToCmd token request =
     in
     case request of
         AddWaypoint r ->
-            Endpoint.request Api.addWaypoint r (tagWith AddWaypointResponse)
+            Endpoint.request Api.waypointAdd r (tagWith AddWaypointResponse)
 
         DeleteWaypoint r ->
-            Endpoint.request Api.deleteWaypoint r (tagWith (DeleteWaypointResponse r.id))
+            Endpoint.request Api.waypointDelete r (tagWith (DeleteWaypointResponse r.id))
 
         InitWaypoints ->
             Endpoint.request Api.waypoints (tagWith InitWaypointsResponse)

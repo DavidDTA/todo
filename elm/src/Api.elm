@@ -2,10 +2,8 @@ module Api exposing
     ( Waypoint
     , WaypointId(..)
     , Waypoints
-    , addWaypoint
     , appjs
     , badRequest
-    , deleteWaypoint
     , detail
     , export
     , forbidden
@@ -14,6 +12,8 @@ module Api exposing
     , login
     , priorities
     , unwrapWaypointId
+    , waypointAdd
+    , waypointDelete
     , waypointIdKeyDict
     , waypoints
     , wrapWaypointId
@@ -136,37 +136,37 @@ waypoints =
         (bytesResponse w3_decode_Waypoints w3_encode_Waypoints)
 
 
-addWaypoint =
+waypointAdd =
     post
         (apiBase ++ [ Endpoint.fixed "add-waypoint" ])
-        (bytesRequest w3_decode_AddWaypointRequest w3_encode_AddWaypointRequest)
-        (bytesResponse w3_decode_AddWaypointResponse w3_encode_AddWaypointResponse)
+        (bytesRequest w3_decode_WaypointAddRequest w3_encode_WaypointAddRequest)
+        (bytesResponse w3_decode_WaypointAddResponse w3_encode_WaypointAddResponse)
 
 
-deleteWaypoint =
+waypointDelete =
     post
         (apiBase ++ [ Endpoint.fixed "delete-waypoint" ])
-        (bytesRequest w3_decode_DeleteWaypointRequest w3_encode_DeleteWaypointRequest)
-        (bytesResponse w3_decode_DeleteWaypointResponse w3_encode_DeleteWaypointResponse)
+        (bytesRequest w3_decode_WaypointDeleteRequest w3_encode_WaypointDeleteRequest)
+        (bytesResponse w3_decode_WaypoinyDeleteResponse w3_encode_WaypoinyDeleteResponse)
 
 
 type alias Priorities =
     List WaypointId
 
 
-type alias AddWaypointRequest =
+type alias WaypointAddRequest =
     { text : String }
 
 
-type alias AddWaypointResponse =
+type alias WaypointAddResponse =
     { id : WaypointId, waypoint : Waypoint }
 
 
-type alias DeleteWaypointRequest =
+type alias WaypointDeleteRequest =
     { id : WaypointId }
 
 
-type alias DeleteWaypointResponse =
+type alias WaypoinyDeleteResponse =
     {}
 
 

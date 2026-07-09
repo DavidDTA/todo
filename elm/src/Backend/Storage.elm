@@ -1,9 +1,9 @@
 module Backend.Storage exposing
     ( Error(..)
-    , addWaypoint
-    , deleteWaypoint
-    , getPriorities
-    , getWaypoints
+    , prioritiesList
+    , waypointAdd
+    , waypointDelete
+    , waypointsList
     )
 
 import Api
@@ -20,20 +20,20 @@ type Error
     | KvUnexpectedKey (List Backend.Interop.KvKeyPart)
 
 
-getPriorities kv =
+prioritiesList kv =
     kvGet kv keys.priorities decodePriorities
         |> ConcurrentTask.map (Maybe.withDefault [])
         |> ConcurrentTask.mapError Errors.singleton
 
 
-addWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
-addWaypoint op id { text } =
+waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
+waypointAdd op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
         |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = Json.Encode.object [ ( "text", Json.Encode.string text ) ] })
 
 
-deleteWaypoint : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask x ()
-deleteWaypoint op id =
+waypointDelete : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask x ()
+waypointDelete op id =
     Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
 
 
@@ -55,7 +55,7 @@ kvGet kv key decoder =
             )
 
 
-getWaypoints kv =
+waypointsList kv =
     Backend.Interop.kvList kv keys.waypointPrefix decodeWaypoint
         |> ConcurrentTask.andThen Backend.Interop.iteratorToList
         |> ConcurrentTask.andThen

@@ -159,7 +159,7 @@ handlers =
     Endpoint.handlers (\request -> Backend.Interop.getLegacyResponse request)
         |> Endpoint.addHandler Api.priorities getPriorities
         |> Endpoint.addHandler Api.waypoints getWaypoints
-        |> Endpoint.addHandler Api.addWaypoint
+        |> Endpoint.addHandler Api.waypointAdd
             (\{ text } ->
                 Backend.Interop.withKv
                     (\kv ->
@@ -168,7 +168,7 @@ handlers =
                                 Backend.Id.generate Api.WaypointId
                                     |> ConcurrentTask.andThen
                                         (\id ->
-                                            Backend.Storage.addWaypoint op
+                                            Backend.Storage.waypointAdd op
                                                 id
                                                 { text = text
                                                 }
@@ -187,13 +187,13 @@ handlers =
                             |> ConcurrentTask.map .result
                     )
             )
-        |> Endpoint.addHandler Api.deleteWaypoint
+        |> Endpoint.addHandler Api.waypointDelete
             (\{ id } ->
                 Backend.Interop.withKv
                     (\kv ->
                         transact kv
                             (\op ->
-                                Backend.Storage.deleteWaypoint op id
+                                Backend.Storage.waypointDelete op id
                                     |> ConcurrentTask.return {}
                             )
                             |> ConcurrentTask.map .result
@@ -237,14 +237,14 @@ handlers =
 getPriorities =
     Backend.Interop.withKv
         (\kv ->
-            Backend.Storage.getPriorities kv
+            Backend.Storage.prioritiesList kv
         )
 
 
 getWaypoints =
     Backend.Interop.withKv
         (\kv ->
-            Backend.Storage.getWaypoints kv
+            Backend.Storage.waypointsList kv
         )
         |> ConcurrentTask.map
             (List.map

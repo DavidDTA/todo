@@ -1,5 +1,6 @@
 module Backend.Storage exposing
-    ( Error(..)
+    ( PrioritiesListError(..)
+    , WaypointsListError(..)
     , prioritiesList
     , waypointAdd
     , waypointDelete
@@ -15,15 +16,18 @@ import Json.Encode
 import Result.Extra
 
 
-type Error
-    = KvValueDecodeError { key : List Backend.Interop.KvKeyPart, error : Json.Decode.Error }
-    | KvUnexpectedKey (List Backend.Interop.KvKeyPart)
+type WaypointsListError
+    = WaypointsListUnexpectedKey (List Backend.Interop.KvKeyPart)
+    | WaypointsListDecodeError { id : Api.WaypointId, error : Json.Decode.Error }
+
+
+type PrioritiesListError
+    = PrioritiesListDecodeError Json.Decode.Error
 
 
 prioritiesList kv =
-    kvGet kv keys.priorities decodePriorities
+    kvGet kv keys.priorities decodePriorities PrioritiesListDecodeError
         |> ConcurrentTask.map (Maybe.withDefault [])
-        |> ConcurrentTask.mapError Errors.singleton
 
 
 waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
@@ -37,7 +41,7 @@ waypointDelete op id =
     Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
 
 
-kvGet kv key decoder =
+kvGet kv key decoder tagError =
     Backend.Interop.kvGet kv key
         |> ConcurrentTask.andThen
             (\result ->
@@ -51,7 +55,7 @@ kvGet kv key decoder =
                                 ConcurrentTask.succeed (Just decoded)
 
                             Err err ->
-                                ConcurrentTask.fail (KvValueDecodeError { key = key, error = err })
+                                ConcurrentTask.fail (tagError err)
             )
 
 
@@ -72,10 +76,10 @@ waypointsList kv =
                                                     Ok { id = Api.WaypointId id, waypoint = value }
 
                                                 Err error ->
-                                                    Err (KvValueDecodeError { key = item.key, error = error })
+                                                    Err (WaypointsListDecodeError { id = Api.WaypointId id, error = error })
 
                                         _ ->
-                                            Err (KvUnexpectedKey item.key)
+                                            Err (WaypointsListUnexpectedKey item.key)
                                 )
                             |> Result.Extra.partition
                 in

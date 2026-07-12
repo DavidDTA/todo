@@ -35,6 +35,10 @@ type Authentication
     = UniversalAuthentication
 
 
+type Error
+    = InternalError { log : List Json.Decode.Value }
+
+
 main =
     Platform.worker
         { init =
@@ -86,12 +90,7 @@ update msg model =
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
                         |> ConcurrentTask.andThen identity
-                        |> ConcurrentTask.onError
-                            (\errors ->
-                                formatExpectedErrors errors
-                                    |> Backend.Interop.logError
-                                    |> ConcurrentTask.andThenDo Api.internalServerError
-                            )
+                        |> ConcurrentTask.onError handleError
                         |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
@@ -106,24 +105,11 @@ subscriptions model =
         ]
 
 
-formatExpectedErrors errors =
-    Errors.toList errors
-        |> List.map
-            (\error ->
-                case error of
-                    Backend.Storage.KvUnexpectedKey key ->
-                        [ Json.Encode.string "Unexpectes kv key"
-                        , Backend.Interop.encodeKvKey key
-                        ]
-                            |> Json.Encode.list identity
-
-                    Backend.Storage.KvValueDecodeError decoderError ->
-                        [ Json.Encode.string "Error parsing kv key"
-                        , Backend.Interop.encodeKvKey decoderError.key
-                        , Json.Encode.string (Json.Decode.errorToString decoderError.error)
-                        ]
-                            |> Json.Encode.list identity
-            )
+handleError error =
+    case error of
+        InternalError { log } ->
+            Backend.Interop.logError log
+                |> ConcurrentTask.andThenDo Api.internalServerError
 
 
 formatUnexpectedError unexpectedError =
@@ -239,6 +225,17 @@ getPriorities =
         (\kv ->
             Backend.Storage.prioritiesList kv
         )
+        |> ConcurrentTask.mapError
+            (\error ->
+                case error of
+                    Backend.Storage.PrioritiesListDecodeError decodeError ->
+                        InternalError
+                            { log =
+                                [ Json.Encode.string "Error decoding priorities list"
+                                , Json.Encode.string (Json.Decode.errorToString decodeError)
+                                ]
+                            }
+            )
 
 
 getWaypoints =
@@ -259,6 +256,28 @@ getWaypoints =
                         }
                     }
                 )
+            )
+        |> ConcurrentTask.mapError
+            (\errors ->
+                InternalError
+                    { log =
+                        Errors.toList errors
+                            |> List.map
+                                (\error ->
+                                    case error of
+                                        Backend.Storage.WaypointsListUnexpectedKey key ->
+                                            Json.Encode.list identity
+                                                [ Json.Encode.string "Unexpected key decoding waypoints"
+                                                , Backend.Interop.encodeKvKey key
+                                                ]
+
+                                        Backend.Storage.WaypointsListDecodeError decodeError ->
+                                            Json.Encode.list identity
+                                                [ Json.Encode.string ("Error decoding waypoint " ++ Api.unwrapWaypointId decodeError.id)
+                                                , Json.Encode.string (Json.Decode.errorToString decodeError.error)
+                                                ]
+                                )
+                    }
             )
 
 

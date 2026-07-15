@@ -13,16 +13,20 @@ module Ui exposing
     , loader
     , primary
     , scaffold
+    , select
     , text
     , toHtml
     )
 
 import Css
 import Css.Global
+import Dict
 import Html.Events.Extra.Pointer
 import Html.Styled
 import Html.Styled.Attributes
 import Html.Styled.Events
+import Json.Decode
+import List.Extra
 
 
 type Flow msg
@@ -126,6 +130,66 @@ list items =
                     (unwrap content |> container)
             )
         |> Html.Styled.ul []
+        |> List.singleton
+        |> Flow
+
+
+select items tag =
+    let
+        msgDict =
+            items
+                |> List.Extra.indexedFoldl
+                    (\index item acc ->
+                        case item.msg of
+                            Nothing ->
+                                acc
+
+                            Just msg ->
+                                Dict.insert index msg acc
+                    )
+                    Dict.empty
+
+        decoder =
+            Json.Decode.map2
+                (\form selection ->
+                    { call =
+                        { object = form
+                        , methodName = "reset"
+                        , args = []
+                        }
+                    , selection = selection
+                    }
+                )
+                (Json.Decode.at [ "target", "form" ] Json.Decode.value)
+                (Json.Decode.at [ "target", "selectedIndex" ] Json.Decode.int
+                    |> Json.Decode.map (\index -> Dict.get index msgDict)
+                )
+                |> Json.Decode.map tag
+    in
+    items
+        |> List.map
+            (\item ->
+                Html.Styled.option
+                    ([ if item.msg == Nothing then
+                        [ Html.Styled.Attributes.attribute "disabled" "" ]
+
+                       else
+                        []
+                     , if item.selected then
+                        [ Html.Styled.Attributes.attribute "selected" "" ]
+
+                       else
+                        []
+                     ]
+                        |> List.concat
+                    )
+                    [ Html.Styled.text item.text ]
+            )
+        |> Html.Styled.select
+            [ Html.Styled.Events.on "input" decoder
+            ]
+        |> List.singleton
+        |> Html.Styled.form []
         |> List.singleton
         |> Flow
 

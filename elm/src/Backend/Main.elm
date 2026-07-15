@@ -191,6 +191,7 @@ handlers =
                     )
             )
         |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
+        |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
         |> Endpoint.addHandler Api.export
             (ConcurrentTask.map2
                 (\priorities_ waypoints_ ->
@@ -312,6 +313,28 @@ waypointSetCompleted { id, completed } =
                         InternalError
                             { log =
                                 [ Json.Encode.string ("Error decoding waypoint " ++ Api.unwrapWaypointId id)
+                                , Json.Encode.string (Json.Decode.errorToString decodeError)
+                                ]
+                            }
+            )
+
+
+waypointSetPriority { id, priorityIndex } =
+    Backend.Interop.withKv
+        (\kv ->
+            transact kv
+                (\op ->
+                    Backend.Storage.waypointSetPriority kv op id priorityIndex
+                )
+                |> ConcurrentTask.map .result
+        )
+        |> ConcurrentTask.mapError
+            (\error ->
+                case error of
+                    Backend.Storage.WaypointSetPriorityDecodeError decodeError ->
+                        InternalError
+                            { log =
+                                [ Json.Encode.string "Error decoding priorities"
                                 , Json.Encode.string (Json.Decode.errorToString decodeError)
                                 ]
                             }

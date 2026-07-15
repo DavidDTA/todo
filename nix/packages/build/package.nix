@@ -18,6 +18,9 @@
       (function(){
       document.addEventListener("DOMContentLoaded", (event) => {
       var elm = Elm.Frontend.''${entry}.init({ node: document.body });
+      elm.ports.callMethod.subscribe(function(event) {
+        event.object[event.methodName](...event.args);
+      });
       });
       })();
       </script>

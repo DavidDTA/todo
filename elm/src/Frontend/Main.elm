@@ -6,6 +6,7 @@ import Browser.Navigation
 import Css
 import Dict
 import Endpoint
+import Frontend.Ports
 import Graph
 import Heap
 import Html
@@ -64,11 +65,20 @@ type UserAction
     | ClickCompleteWaypoint Api.WaypointId
     | ClickDeleteWaypoint Api.WaypointId
     | ChangeInput String
+    | SelectWaypointPriority
+        { call :
+            { object : Json.Decode.Value
+            , methodName : String
+            , args : List Json.Decode.Value
+            }
+        , selection : Maybe { id : Api.WaypointId, priorityIndex : Maybe Int }
+        }
 
 
 type NetworkRequest
     = AddWaypoint { text : String }
     | SetWaypointCompleted { id : Api.WaypointId, completed : Bool }
+    | SetWaypointPriority { id : Api.WaypointId, priorityIndex : Maybe Int }
     | DeleteWaypoint { id : Api.WaypointId }
     | InitWaypoints
     | InitPriorities
@@ -78,6 +88,7 @@ type NetworkResponse
     = InitWaypointsResponse (List { id : Api.WaypointId, waypoint : Api.Waypoint })
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
+    | SetWaypointPriorityResponse (List Api.WaypointId)
     | DeleteWaypointResponse Api.WaypointId {}
     | SetWaypointCompletedResponse { id : Api.WaypointId, completed : Bool } {}
 
@@ -221,6 +232,15 @@ update msg model =
                     )
                         |> makeNetworkRequest (DeleteWaypoint { id = id })
 
+                SelectWaypointPriority { call, selection } ->
+                    case selection of
+                        Nothing ->
+                            ( model, Frontend.Ports.callMethod call )
+
+                        Just selection_ ->
+                            ( model, Frontend.Ports.callMethod call )
+                                |> makeNetworkRequest (SetWaypointPriority selection_)
+
 
 updateForNetworkResponse response model =
     case response of
@@ -289,6 +309,18 @@ updateForNetworkResponse response model =
                             { priorities = priorities
                             , waypoints = Api.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | completed = completed })) waypoints
                             }
+                        )
+                        model.data
+              }
+            , Cmd.none
+            )
+
+        SetWaypointPriorityResponse priorities ->
+            ( { model
+                | data =
+                    updateData
+                        (\data ->
+                            { data | priorities = priorities }
                         )
                         model.data
               }
@@ -550,12 +582,16 @@ viewHome model data =
         )
 
 
-viewDetail ({ waypoints } as data) waypointId =
+viewDetail ({ waypoints, priorities } as data) waypointId =
     case Api.waypointIdKeyDict .get waypointId waypoints of
         Nothing ->
             viewOops UnknownPath
 
         Just { text, completed } ->
+            let
+                priorityIndex =
+                    List.Extra.elemIndex waypointId priorities
+            in
             Ui.heading text
                 |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) consts.strings.delete)
                 |> Ui.append
@@ -566,6 +602,70 @@ viewDetail ({ waypoints } as data) waypointId =
                          else
                             consts.strings.incomplete
                         )
+                    )
+                |> Ui.append
+                    (Ui.select
+                        (priorities
+                            |> List.filterMap
+                                (\priorityId ->
+                                    if priorityId == waypointId then
+                                        Nothing
+
+                                    else
+                                        Just
+                                            { text =
+                                                Api.waypointIdKeyDict .get priorityId waypoints
+                                                    |> Maybe.map .text
+                                                    |> Maybe.withDefault Strings.unknownWaypoint
+                                            , selected = False
+                                            , msg = Nothing
+                                            }
+                                )
+                            |> List.Extra.interweave
+                                (List.range 0
+                                    (List.length priorities
+                                        - (if priorityIndex == Nothing then
+                                            0
+
+                                           else
+                                            1
+                                          )
+                                    )
+                                    |> List.map
+                                        (\index ->
+                                            { text =
+                                                if List.Extra.getAt index priorities == Just waypointId then
+                                                    text
+
+                                                else
+                                                    ""
+                                            , selected = False
+                                            , msg =
+                                                Just
+                                                    { id = waypointId
+                                                    , priorityIndex =
+                                                        if Just index == priorityIndex then
+                                                            Nothing
+
+                                                        else
+                                                            Just index
+                                                    }
+                                            }
+                                        )
+                                )
+                            |> (::)
+                                { text =
+                                    case priorityIndex of
+                                        Nothing ->
+                                            consts.strings.unprioritized
+
+                                        Just priorityIndex_ ->
+                                            consts.strings.prioritized priorityIndex_
+                                , selected = True
+                                , msg = Nothing
+                                }
+                        )
+                        SelectWaypointPriority
                     )
                 |> Ui.append (viewWaypoints (Just waypointId) (always True) data)
 
@@ -842,6 +942,9 @@ requestToCmd token request =
         SetWaypointCompleted r ->
             Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
 
+        SetWaypointPriority r ->
+            Endpoint.request Api.waypointSetPriority r (tagWith SetWaypointPriorityResponse)
+
         DeleteWaypoint r ->
             Endpoint.request Api.waypointDelete r (tagWith (DeleteWaypointResponse r.id))
 
@@ -858,6 +961,9 @@ requestSafety request =
             NetworkQueue.Unsafe
 
         SetWaypointCompleted _ ->
+            NetworkQueue.Idempotent
+
+        SetWaypointPriority _ ->
             NetworkQueue.Idempotent
 
         DeleteWaypoint _ ->
@@ -888,5 +994,7 @@ consts =
                 , normal " to go back home."
                 ]
         , dataError = "Something unexpexted happened when loading your data."
+        , prioritized = \index -> "Priority: " ++ String.fromInt index
+        , unprioritized = "Unprioritized"
         }
     }

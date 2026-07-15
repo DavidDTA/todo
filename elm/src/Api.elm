@@ -16,6 +16,7 @@ module Api exposing
     , waypointDelete
     , waypointIdKeyDict
     , waypointSetCompleted
+    , waypointSetPriority
     , waypoints
     , wrapWaypointId
     )
@@ -128,7 +129,7 @@ priorities :
 priorities =
     get
         (apiBase ++ [ Endpoint.fixed "priorities" ])
-        (bytesResponse w3_decode_Priorities w3_encode_Priorities)
+        (bytesResponse w3_decode_PrioritiesResponse w3_encode_PrioritiesResponse)
 
 
 waypoints =
@@ -158,7 +159,14 @@ waypointSetCompleted =
         (bytesResponse w3_decode_WaypointSetCompletedResponse w3_encode_WaypointSetCompletedResponse)
 
 
-type alias Priorities =
+waypointSetPriority =
+    post
+        (apiBase ++ [ Endpoint.fixed "waypoint-set-priority" ])
+        (bytesRequest w3_decode_WaypointSetPriorityRequest w3_encode_WaypointSetPriorityRequest)
+        (bytesResponse w3_decode_WaypointSetPriorityResponse w3_encode_WaypointSetPriorityResponse)
+
+
+type alias PrioritiesResponse =
     List WaypointId
 
 
@@ -186,6 +194,16 @@ type alias WaypointSetCompletedRequest =
 
 type alias WaypointSetCompletedResponse =
     {}
+
+
+type alias WaypointSetPriorityRequest =
+    { id : WaypointId
+    , priorityIndex : Maybe Int
+    }
+
+
+type alias WaypointSetPriorityResponse =
+    PrioritiesResponse
 
 
 withRequest =

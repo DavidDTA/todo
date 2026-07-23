@@ -79,7 +79,7 @@ heading text_ =
 list items =
     items
         |> List.map
-            (\{ content, highlight, bullet, strikethrough, targetUrl } ->
+            (\{ content, highlight, starred, strikethrough, targetUrl } ->
                 let
                     container =
                         case targetUrl of
@@ -98,12 +98,11 @@ list items =
                 Html.Styled.li
                     ([ Html.Styled.Attributes.css
                         [ Css.listStyleType
-                            (case bullet of
-                                Just bulletString ->
-                                    Css.string (bulletString ++ " ")
+                            (if starred then
+                                Css.string "☆ "
 
-                                Nothing ->
-                                    Css.none
+                             else
+                                Css.none
                             )
                         , Css.backgroundColor
                             (case highlight of

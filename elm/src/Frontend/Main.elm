@@ -750,12 +750,8 @@ viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph,
                                                     Nothing ->
                                                         viewWaypointRowPrimitive
                                                             { text = Strings.unknownWaypoint
-                                                            , icon =
-                                                                if List.member id priorities then
-                                                                    "☆"
-
-                                                                else
-                                                                    ""
+                                                            , starred =
+                                                                List.member id priorities
                                                             , id = id
                                                             , highlight = highlight
                                                             , strikethrough = False
@@ -794,7 +790,7 @@ viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph,
                             content
 
                         Hidden { total } ->
-                            { bullet = Nothing
+                            { starred = False
                             , highlight = Just Ui.diminished
                             , strikethrough = False
                             , targetUrl = Nothing
@@ -900,12 +896,7 @@ squeeze priorities sccNodeIds graph =
 viewWaypointRow { completed, highlight, id, priority, text, url } =
     viewWaypointRowPrimitive
         { text = text
-        , icon =
-            if priority then
-                "☆"
-
-            else
-                ""
+        , starred = priority
         , id = id
         , highlight = highlight
         , strikethrough = completed
@@ -913,8 +904,8 @@ viewWaypointRow { completed, highlight, id, priority, text, url } =
         }
 
 
-viewWaypointRowPrimitive { highlight, icon, id, strikethrough, text, url } =
-    { bullet = Just icon
+viewWaypointRowPrimitive { highlight, starred, id, strikethrough, text, url } =
+    { starred = starred
     , highlight = highlight
     , strikethrough = strikethrough
     , targetUrl = Just (Endpoint.joinPath [ "detail", Api.unwrapWaypointId id ])

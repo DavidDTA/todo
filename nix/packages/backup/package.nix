@@ -19,7 +19,7 @@
 
       origin="''${1}"
       token="''${2}"
-      curl "''${origin}/account/export" -L --cookie "__Host-d=''${token}" --fail --silent |
+      curl "''${origin}/account/export" -L --cookie "__Host-Http-a=''${token}" --fail --silent |
         yq -y .
     '';
   }

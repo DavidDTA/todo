@@ -7,7 +7,8 @@ export function setAuthentication(headers: Headers, token: string) {
     secure: true,
     httpOnly: true,
     sameSite: "Lax",
+    maxAge: 30*24*60*60,
   });
 }
 
-const TOKEN_KEY_COOKIE = "__Host-d";
+const TOKEN_KEY_COOKIE = "__Host-Http-a";

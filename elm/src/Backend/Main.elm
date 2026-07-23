@@ -397,6 +397,6 @@ consts =
         { token = "TOKEN"
         }
     , cookie =
-        { token = "__Host-d"
+        { token = "__Host-Http-a"
         }
     }

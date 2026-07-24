@@ -409,6 +409,14 @@ buildData { priorities, waypoints } =
                     )
                     []
                     waypoints
+                    |> List.concatMap
+                        (\edge ->
+                            if Maybe.Extra.unwrap False .completed (Api.waypointIdKeyDict .get edge.from waypoints) then
+                                [ edge, { from = edge.to, to = edge.from } ]
+
+                            else
+                                [ edge ]
+                        )
                     |> List.filterMap
                         (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (Api.waypointIdKeyDict .get edge.from nodeIds) (Api.waypointIdKeyDict .get edge.to nodeIds))
                 )

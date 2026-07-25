@@ -578,7 +578,7 @@ type WaypointListEntry a
 
 viewHome model data =
     Ui.scaffold
-        (viewWaypoints Nothing (globalFilter model.input) data)
+        (viewWaypoints (always True) (globalFilter model.input) data)
         (Ui.input { text = model.input, onInput = ChangeInput }
             |> Ui.append
                 (if model.input == "" then
@@ -675,49 +675,51 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                         )
                         SelectWaypointPriority
                     )
-                |> Ui.append (viewWaypoints (Just waypointId) (always True) data)
+                |> Ui.append
+                    (let
+                        seeds =
+                            data.graph
+                                |> Graph.nodes
+                                |> List.filter
+                                    (\n ->
+                                        Graph.nodes n.label
+                                            |> List.any (\{ label } -> waypointId == label)
+                                    )
+                                |> List.map .id
 
+                        transitiveRequires =
+                            Graph.guidedDfs
+                                Graph.alongOutgoingEdges
+                                (Graph.onDiscovery
+                                    (\{ node } acc ->
+                                        Graph.nodes node.label
+                                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                                    )
+                                )
+                                seeds
+                                (Api.waypointIdKeyDict .empty)
+                                data.graph
+                                |> Tuple.first
 
-viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph, waypoints } =
-    let
-        seeds =
-            graph
-                |> Graph.nodes
-                |> List.filter
-                    (\n ->
-                        Graph.nodes n.label
-                            |> List.any (\{ label } -> focusedWaypointId == Just label)
+                        transitiveRequiredBy =
+                            Graph.guidedDfs
+                                Graph.alongIncomingEdges
+                                (Graph.onDiscovery
+                                    (\{ node } acc ->
+                                        Graph.nodes node.label
+                                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                                    )
+                                )
+                                seeds
+                                (Api.waypointIdKeyDict .empty)
+                                data.graph
+                                |> Tuple.first
+                     in
+                     viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequires || Api.waypointIdKeyDict .member candidate transitiveRequiredBy) (always True) data
                     )
-                |> List.map .id
 
-        transitiveRequires =
-            Graph.guidedDfs
-                Graph.alongOutgoingEdges
-                (Graph.onDiscovery
-                    (\{ node } acc ->
-                        Graph.nodes node.label
-                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
-                    )
-                )
-                seeds
-                (Api.waypointIdKeyDict .empty)
-                graph
-                |> Tuple.first
 
-        transitiveRequiredBy =
-            Graph.guidedDfs
-                Graph.alongIncomingEdges
-                (Graph.onDiscovery
-                    (\{ node } acc ->
-                        Graph.nodes node.label
-                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
-                    )
-                )
-                seeds
-                (Api.waypointIdKeyDict .empty)
-                graph
-                |> Tuple.first
-    in
+viewWaypoints filter searchPredicate { priorities, sccNodeIds, graph, waypoints } =
     Ui.list
         (graph
             |> squeeze priorities sccNodeIds
@@ -728,10 +730,7 @@ viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph,
                             (\id ->
                                 let
                                     highlight =
-                                        if focusedWaypointId == Just id then
-                                            Just Ui.primary
-
-                                        else if Graph.size scc > 1 then
+                                        if Graph.size scc > 1 then
                                             Just Ui.conflict
 
                                         else
@@ -740,7 +739,7 @@ viewWaypoints focusedWaypointId searchPredicate { priorities, sccNodeIds, graph,
                                     maybeWaypoint =
                                         Api.waypointIdKeyDict .get id waypoints
                                 in
-                                if focusedWaypointId == Nothing || Api.waypointIdKeyDict .member id transitiveRequires || Api.waypointIdKeyDict .member id transitiveRequiredBy then
+                                if filter id then
                                     Just
                                         (if searchPredicate maybeWaypoint then
                                             Just

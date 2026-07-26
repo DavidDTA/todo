@@ -578,7 +578,30 @@ type WaypointListEntry a
 
 viewHome model data =
     Ui.scaffold
-        (viewWaypoints (globalFilter model.input data.waypoints) data)
+        (if model.input == "" then
+            let
+                filteredForCompletion =
+                    data.graph
+                        |> Graph.nodes
+                        |> List.concatMap
+                            (\n ->
+                                if List.all (\{ label } -> Maybe.Extra.unwrap False .completed (Api.waypointIdKeyDict .get label data.waypoints)) (Graph.nodes n.label) then
+                                    Graph.nodes n.label
+                                        |> List.map .label
+
+                                else
+                                    []
+                            )
+                        |> List.map (\id -> ( id, {} ))
+                        |> Api.waypointIdKeyDict .fromList
+            in
+            viewWaypoints (\id -> not (Api.waypointIdKeyDict .member id filteredForCompletion)) data
+                |> Ui.append
+                    (viewWaypoints (\id -> Api.waypointIdKeyDict .member id filteredForCompletion) data)
+
+         else
+            viewWaypoints (globalFilter model.input data.waypoints) data
+        )
         (Ui.input { text = model.input, onInput = ChangeInput }
             |> Ui.append
                 (if model.input == "" then

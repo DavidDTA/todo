@@ -546,20 +546,20 @@ viewOops reason =
             )
 
 
-globalFilter input waypoint =
+globalFilter input waypoints id =
     let
         words =
             String.words input
                 |> List.map String.toLower
 
         text =
-            waypoint
+            Api.waypointIdKeyDict .get id waypoints
                 |> Maybe.map .text
                 |> Maybe.withDefault ""
                 |> String.toLower
 
         url =
-            waypoint
+            Api.waypointIdKeyDict .get id waypoints
                 |> Maybe.andThen .url
                 |> Maybe.withDefault ""
                 |> String.toLower
@@ -578,7 +578,7 @@ type WaypointListEntry a
 
 viewHome model data =
     Ui.scaffold
-        (viewWaypoints (always True) (globalFilter model.input) data)
+        (viewWaypoints (globalFilter model.input data.waypoints) data)
         (Ui.input { text = model.input, onInput = ChangeInput }
             |> Ui.append
                 (if model.input == "" then
@@ -715,18 +715,18 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                                 data.graph
                                 |> Tuple.first
                      in
-                     viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequires || Api.waypointIdKeyDict .member candidate transitiveRequiredBy) (always True) data
+                     viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequires || Api.waypointIdKeyDict .member candidate transitiveRequiredBy) data
                     )
 
 
-viewWaypoints filter searchPredicate { priorities, sccNodeIds, graph, waypoints } =
+viewWaypoints filter { priorities, sccNodeIds, graph, waypoints } =
     Ui.list
         (graph
             |> squeeze priorities sccNodeIds
             |> List.concatMap
                 (\scc ->
                     Graph.dfs (Graph.onDiscovery (.node >> .label >> (::))) [] scc
-                        |> List.map
+                        |> List.filterMap
                             (\id ->
                                 let
                                     highlight =
@@ -741,69 +741,32 @@ viewWaypoints filter searchPredicate { priorities, sccNodeIds, graph, waypoints 
                                 in
                                 if filter id then
                                     Just
-                                        (if searchPredicate maybeWaypoint then
-                                            Just
-                                                (case maybeWaypoint of
-                                                    Just waypoint ->
-                                                        viewWaypointRow
-                                                            { text = waypoint.text
-                                                            , completed = waypoint.completed
-                                                            , highlight = highlight
-                                                            , id = id
-                                                            , priority = List.member id priorities
-                                                            , url = waypoint.url
-                                                            }
+                                        (case maybeWaypoint of
+                                            Just waypoint ->
+                                                viewWaypointRow
+                                                    { text = waypoint.text
+                                                    , completed = waypoint.completed
+                                                    , highlight = highlight
+                                                    , id = id
+                                                    , priority = List.member id priorities
+                                                    , url = waypoint.url
+                                                    }
 
-                                                    Nothing ->
-                                                        viewWaypointRowPrimitive
-                                                            { text = Strings.unknownWaypoint
-                                                            , starred =
-                                                                List.member id priorities
-                                                            , id = id
-                                                            , highlight = highlight
-                                                            , strikethrough = False
-                                                            , url = Nothing
-                                                            }
-                                                )
-
-                                         else
-                                            Nothing
+                                            Nothing ->
+                                                viewWaypointRowPrimitive
+                                                    { text = Strings.unknownWaypoint
+                                                    , starred =
+                                                        List.member id priorities
+                                                    , id = id
+                                                    , highlight = highlight
+                                                    , strikethrough = False
+                                                    , url = Nothing
+                                                    }
                                         )
 
                                 else
                                     Nothing
                             )
-                )
-            |> List.filterMap identity
-            |> List.foldr
-                (\item acc ->
-                    case item of
-                        Just content ->
-                            Visible content :: acc
-
-                        Nothing ->
-                            case acc of
-                                (Hidden { total }) :: rest ->
-                                    Hidden { total = total + 1 } :: rest
-
-                                _ ->
-                                    Hidden { total = 1 } :: acc
-                )
-                []
-            |> List.map
-                (\item ->
-                    case item of
-                        Visible content ->
-                            content
-
-                        Hidden { total } ->
-                            { starred = False
-                            , highlight = Just Ui.diminished
-                            , strikethrough = False
-                            , targetUrl = Nothing
-                            , content =
-                                Ui.text (consts.strings.skippedItems total)
-                            }
                 )
         )
 

@@ -167,6 +167,7 @@ handlers =
                                                     { id = id
                                                     , waypoint =
                                                         { completed = False
+                                                        , priority = Nothing
                                                         , requiredBy = []
                                                         , requires = []
                                                         , text = text
@@ -192,6 +193,7 @@ handlers =
             )
         |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
         |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
+        |> Endpoint.addHandler Api.waypointSetPriority2 waypointSetPriority2
         |> Endpoint.addHandler Api.export
             (ConcurrentTask.map2
                 (\priorities_ waypoints_ ->
@@ -257,6 +259,7 @@ getWaypoints =
                     , waypoint =
                         { text = waypoint.text
                         , completed = waypoint.completed
+                        , priority = waypoint.priority
                         , url = Nothing
                         , requires = []
                         , requiredBy = []
@@ -335,6 +338,37 @@ waypointSetPriority { id, priorityIndex } =
                         InternalError
                             { log =
                                 [ Json.Encode.string "Error decoding priorities"
+                                , Json.Encode.string (Json.Decode.errorToString decodeError)
+                                ]
+                            }
+            )
+
+
+waypointSetPriority2 { id, priority } =
+    Backend.Interop.withKv
+        (\kv ->
+            transact kv
+                (\op ->
+                    Backend.Storage.waypointSetPriority2 kv op id priority
+                        |> ConcurrentTask.return {}
+                )
+                |> ConcurrentTask.map .result
+        )
+        |> ConcurrentTask.mapError
+            (\error ->
+                case error of
+                    Backend.Storage.WaypointSetPriority2MissingWaypoint ->
+                        NotAuthorized
+                            { log =
+                                [ Json.Encode.string
+                                    ("No waypoint to update: " ++ Api.unwrapWaypointId id)
+                                ]
+                            }
+
+                    Backend.Storage.WaypointSetPriority2DecodeError decodeError ->
+                        InternalError
+                            { log =
+                                [ Json.Encode.string ("Error decoding waypoint " ++ Api.unwrapWaypointId id)
                                 , Json.Encode.string (Json.Decode.errorToString decodeError)
                                 ]
                             }

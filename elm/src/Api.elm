@@ -17,6 +17,7 @@ module Api exposing
     , waypointIdKeyDict
     , waypointSetCompleted
     , waypointSetPriority
+    , waypointSetPriority2
     , waypoints
     , wrapWaypointId
     )
@@ -33,6 +34,7 @@ import Json.Encode
 import KeyDict
 import Lamdera.Wire3
 import Maybe.Extra
+import SortKey
 import Url
 
 
@@ -43,6 +45,7 @@ type WaypointId
 type alias Waypoint =
     { text : String
     , completed : Bool
+    , priority : Maybe String
     , url : Maybe String
     , requires : List WaypointId
     , requiredBy : List WaypointId
@@ -89,6 +92,7 @@ export =
                                     , Json.Encode.object
                                         [ ( "text", Json.Encode.string waypoint.text )
                                         , ( "completed", Json.Encode.bool waypoint.completed )
+                                        , ( "priority", Maybe.Extra.unwrap Json.Encode.null Json.Encode.string waypoint.priority )
                                         , ( "url", Maybe.Extra.unwrap Json.Encode.null Json.Encode.string waypoint.url )
                                         , ( "requires", Json.Encode.list (unwrapWaypointId >> Json.Encode.string) waypoint.requires )
                                         , ( "requiredBy", Json.Encode.list (unwrapWaypointId >> Json.Encode.string) waypoint.requiredBy )
@@ -166,6 +170,13 @@ waypointSetPriority =
         (bytesResponse w3_decode_WaypointSetPriorityResponse w3_encode_WaypointSetPriorityResponse)
 
 
+waypointSetPriority2 =
+    post
+        (apiBase ++ [ Endpoint.fixed "waypoint-set-priority-2" ])
+        (bytesRequest w3_decode_WaypointSetPriorityRequest2 w3_encode_WaypointSetPriorityRequest2)
+        (bytesResponse w3_decode_WaypointSetPriorityResponse2 w3_encode_WaypointSetPriorityResponse2)
+
+
 type alias PrioritiesResponse =
     List WaypointId
 
@@ -204,6 +215,16 @@ type alias WaypointSetPriorityRequest =
 
 type alias WaypointSetPriorityResponse =
     PrioritiesResponse
+
+
+type alias WaypointSetPriorityRequest2 =
+    { id : WaypointId
+    , priority : Maybe String
+    }
+
+
+type alias WaypointSetPriorityResponse2 =
+    {}
 
 
 withRequest =

@@ -1,6 +1,7 @@
 module Backend.Storage exposing
     ( PrioritiesListError(..)
     , WaypointSetCompletedError(..)
+    , WaypointSetPriority2Error(..)
     , WaypointSetPriorityError(..)
     , WaypointsListError(..)
     , prioritiesList
@@ -8,6 +9,7 @@ module Backend.Storage exposing
     , waypointDelete
     , waypointSetCompleted
     , waypointSetPriority
+    , waypointSetPriority2
     , waypointsList
     )
 
@@ -18,6 +20,7 @@ import Errors
 import Json.Decode
 import Json.Encode
 import List.Extra
+import Maybe.Extra
 import Result.Extra
 
 
@@ -39,6 +42,11 @@ type WaypointSetPriorityError
     = WaypointSetPriorityDecodeError Json.Decode.Error
 
 
+type WaypointSetPriority2Error
+    = WaypointSetPriority2MissingWaypoint
+    | WaypointSetPriority2DecodeError Json.Decode.Error
+
+
 prioritiesList kv =
     kvGet kv keys.priorities decodePriorities PrioritiesListDecodeError
         |> ConcurrentTask.map (Maybe.map .value >> Maybe.withDefault [])
@@ -47,7 +55,7 @@ prioritiesList kv =
 waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
 waypointAdd op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
-        |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = encodeWaypoint { text = text, completed = False } })
+        |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = encodeWaypoint { text = text, completed = False, priority = Nothing } })
 
 
 waypointDelete : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask x ()
@@ -97,6 +105,24 @@ waypointSetPriority kv op id maybePriority =
                 Backend.Interop.atomicOpCheck op { key = keys.priorities, versionstamp = Maybe.map .versionstamp entry }
                     |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.priorities, value = encodePriorities newPriorities })
                     |> ConcurrentTask.return newPriorities
+            )
+
+
+waypointSetPriority2 kv op id priority =
+    let
+        key =
+            keys.waypoint id
+    in
+    kvGet kv key decodeWaypoint WaypointSetPriority2DecodeError
+        |> ConcurrentTask.andThen
+            (\entry ->
+                case entry of
+                    Nothing ->
+                        ConcurrentTask.fail WaypointSetPriority2MissingWaypoint
+
+                    Just { versionstamp, value } ->
+                        Backend.Interop.atomicOpCheck op { key = key, versionstamp = Just versionstamp }
+                            |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = key, value = encodeWaypoint { value | priority = priority } })
             )
 
 
@@ -164,18 +190,22 @@ encodePriorities priorities =
 
 
 decodeWaypoint =
-    Json.Decode.map2
-        (\text completed -> { text = text, completed = completed })
+    Json.Decode.map3
+        (\text completed priority -> { text = text, completed = completed, priority = priority })
         (Json.Decode.field "text" Json.Decode.string)
         (optionalField "completed" Json.Decode.bool
             |> Json.Decode.map (Maybe.withDefault False)
         )
+        (optionalField "priority" (Json.Decode.nullable Json.Decode.string)
+            |> Json.Decode.map (Maybe.withDefault Nothing)
+        )
 
 
-encodeWaypoint { text, completed } =
+encodeWaypoint { text, completed, priority } =
     Json.Encode.object
         [ ( "text", Json.Encode.string text )
         , ( "completed", Json.Encode.bool completed )
+        , ( "priority", Maybe.Extra.unwrap Json.Encode.null Json.Encode.string priority )
         ]
 
 

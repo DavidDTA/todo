@@ -2,6 +2,7 @@ port module Backend.Interop exposing
     ( AtomicOperation
     , Kv
     , KvKeyPart(..)
+    , Log
     , Request
     , Resolver
     , Response
@@ -57,6 +58,10 @@ port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 
 
 port errors : List Json.Encode.Value -> Cmd msg
+
+
+type alias Log =
+    List Json.Decode.Value
 
 
 type Kv

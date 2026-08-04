@@ -25,26 +25,26 @@ import Result.Extra
 
 
 type WaypointsListError
-    = WaypointsListUnexpectedKey (List Backend.Interop.KvKeyPart)
-    | WaypointsListDecodeError { id : Api.WaypointId, error : Json.Decode.Error }
+    = WaypointsListUnexpectedKey Backend.Interop.Log
+    | WaypointsListDecodeError Backend.Interop.Log
 
 
 type PrioritiesListError
-    = PrioritiesListDecodeError Json.Decode.Error
+    = PrioritiesListDecodeError Backend.Interop.Log
 
 
 type WaypointSetCompletedError
-    = WaypointSetCompletedMissingWaypoint
-    | WaypointSetCompletedDecodeError Json.Decode.Error
+    = WaypointSetCompletedMissingWaypoint Backend.Interop.Log
+    | WaypointSetCompletedDecodeError Backend.Interop.Log
 
 
 type WaypointSetPriorityError
-    = WaypointSetPriorityDecodeError Json.Decode.Error
+    = WaypointSetPriorityDecodeError Backend.Interop.Log
 
 
 type WaypointSetPriority2Error
-    = WaypointSetPriority2MissingWaypoint
-    | WaypointSetPriority2DecodeError Json.Decode.Error
+    = WaypointSetPriority2MissingWaypoint Backend.Interop.Log
+    | WaypointSetPriority2DecodeError Backend.Interop.Log
 
 
 prioritiesList kv =
@@ -73,7 +73,7 @@ waypointSetCompleted kv op id completed =
             (\entry ->
                 case entry of
                     Nothing ->
-                        ConcurrentTask.fail WaypointSetCompletedMissingWaypoint
+                        ConcurrentTask.fail (WaypointSetCompletedMissingWaypoint (logMissingValue key))
 
                     Just { versionstamp, value } ->
                         Backend.Interop.atomicOpCheck op { key = key, versionstamp = Just versionstamp }
@@ -118,7 +118,7 @@ waypointSetPriority2 kv op id priority =
             (\entry ->
                 case entry of
                     Nothing ->
-                        ConcurrentTask.fail WaypointSetPriority2MissingWaypoint
+                        ConcurrentTask.fail (WaypointSetPriority2MissingWaypoint (logMissingValue key))
 
                     Just { versionstamp, value } ->
                         Backend.Interop.atomicOpCheck op { key = key, versionstamp = Just versionstamp }
@@ -140,8 +140,29 @@ kvGet kv key decoder tagError =
                                 ConcurrentTask.succeed (Just { value = decoded, versionstamp = versionstamp })
 
                             Err err ->
-                                ConcurrentTask.fail (tagError err)
+                                ConcurrentTask.fail (tagError (logKvDecodeError key err))
             )
+
+
+logKvDecodeError key error =
+    [ Json.Encode.string "Error decoding kv value"
+    , Json.Encode.string "key:"
+    , Backend.Interop.encodeKvKey key
+    , Json.Encode.string "errror:"
+    , Json.Encode.string (Json.Decode.errorToString error)
+    ]
+
+
+logMissingValue key =
+    [ Json.Encode.string "No value for key"
+    , Backend.Interop.encodeKvKey key
+    ]
+
+
+logUnexpectedKey key =
+    [ Json.Encode.string "Unexpected key while listing"
+    , Backend.Interop.encodeKvKey key
+    ]
 
 
 waypointsList kv =
@@ -161,10 +182,11 @@ waypointsList kv =
                                                     Ok { id = Api.WaypointId id, waypoint = value }
 
                                                 Err error ->
-                                                    Err (WaypointsListDecodeError { id = Api.WaypointId id, error = error })
+                                                    Err (WaypointsListDecodeError (logKvDecodeError item.key error))
 
                                         _ ->
-                                            Err (WaypointsListUnexpectedKey item.key)
+                                            Err
+                                                (WaypointsListUnexpectedKey (logUnexpectedKey item.key))
                                 )
                             |> Result.Extra.partition
                 in

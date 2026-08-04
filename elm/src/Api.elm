@@ -11,6 +11,7 @@ module Api exposing
     , internalServerError
     , login
     , priorities
+    , prioritiesBackfill
     , unwrapWaypointId
     , waypointAdd
     , waypointDelete
@@ -174,6 +175,13 @@ waypointSetPriority2 =
     post
         (apiBase ++ [ Endpoint.fixed "waypoint-set-priority-2" ])
         (bytesRequest w3_decode_WaypointSetPriorityRequest2 w3_encode_WaypointSetPriorityRequest2)
+        emptyResponse
+
+
+prioritiesBackfill =
+    post
+        (apiBase ++ [ Endpoint.fixed "priorities-backfill" ])
+        emptyRequest
         emptyResponse
 
 

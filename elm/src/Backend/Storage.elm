@@ -1,9 +1,11 @@
 module Backend.Storage exposing
-    ( PrioritiesListError(..)
+    ( PrioritiesBackfillError(..)
+    , PrioritiesListError(..)
     , WaypointSetCompletedError(..)
     , WaypointSetPriority2Error(..)
     , WaypointSetPriorityError(..)
     , WaypointsListError(..)
+    , prioritiesBackfill
     , prioritiesList
     , waypointAdd
     , waypointDelete
@@ -22,6 +24,7 @@ import Json.Encode
 import List.Extra
 import Maybe.Extra
 import Result.Extra
+import SortKey
 
 
 type WaypointsListError
@@ -47,9 +50,51 @@ type WaypointSetPriority2Error
     | WaypointSetPriority2DecodeError Backend.Interop.Log
 
 
+type PrioritiesBackfillError
+    = PrioritiesBackfillPrioritiesDecodeError Backend.Interop.Log
+    | PrioritiesBackfillMissingWaypoint Backend.Interop.Log
+    | PrioritiesBackfillWaypointDecodeError Backend.Interop.Log
+
+
 prioritiesList kv =
     kvGet kv keys.priorities decodePriorities PrioritiesListDecodeError
         |> ConcurrentTask.map (Maybe.map .value >> Maybe.withDefault [])
+
+
+prioritiesBackfill kv op =
+    kvGet kv keys.priorities decodePriorities PrioritiesBackfillPrioritiesDecodeError
+        |> ConcurrentTask.map (Maybe.Extra.unwrap [] .value)
+        |> ConcurrentTask.andThen
+            (\priorities ->
+                List.foldl
+                    (\id acc ->
+                        let
+                            key =
+                                keys.waypoint id
+                        in
+                        { task =
+                            acc.task
+                                |> ConcurrentTask.andThenDo
+                                    (kvGet kv key decodeWaypoint PrioritiesBackfillWaypointDecodeError
+                                        |> ConcurrentTask.andThen
+                                            (\entry ->
+                                                case entry of
+                                                    Nothing ->
+                                                        ConcurrentTask.fail (PrioritiesBackfillMissingWaypoint (logMissingValue key))
+
+                                                    Just { versionstamp, value } ->
+                                                        Backend.Interop.atomicOpCheck op { key = key, versionstamp = Just versionstamp }
+                                                            |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = key, value = encodeWaypoint { value | priority = Just acc.nextPriority } })
+                                            )
+                                    )
+                        , nextPriority = SortKey.after acc.nextPriority
+                        }
+                    )
+                    { task = ConcurrentTask.succeed (), nextPriority = SortKey.init }
+                    priorities
+                    |> .task
+            )
+        |> ConcurrentTask.map (always {})
 
 
 waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()

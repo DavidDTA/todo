@@ -62,6 +62,7 @@ type Msg
 
 type UserAction
     = ClickAddWaypoint
+    | ClickBackfillPriorities
     | ClickCompleteWaypoint Api.WaypointId
     | ClickDeleteWaypoint Api.WaypointId
     | ChangeInput String
@@ -77,6 +78,7 @@ type UserAction
 
 type NetworkRequest
     = AddWaypoint { text : String }
+    | BackfillPriorities
     | SetWaypointCompleted { id : Api.WaypointId, completed : Bool }
     | SetWaypointPriority { id : Api.WaypointId, priorityIndex : Maybe Int }
     | DeleteWaypoint { id : Api.WaypointId }
@@ -88,6 +90,7 @@ type NetworkResponse
     = InitWaypointsResponse (List { id : Api.WaypointId, waypoint : Api.Waypoint })
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
+    | BackfillPrioritiesResponse {}
     | SetWaypointPriorityResponse (List Api.WaypointId)
     | DeleteWaypointResponse Api.WaypointId {}
     | SetWaypointCompletedResponse { id : Api.WaypointId, completed : Bool } {}
@@ -178,6 +181,10 @@ update msg model =
                       }
                     , Cmd.none
                     )
+
+                ClickBackfillPriorities ->
+                    ( model, Cmd.none )
+                        |> makeNetworkRequest BackfillPriorities
 
                 ClickAddWaypoint ->
                     ( { model
@@ -286,6 +293,9 @@ updateForNetworkResponse response model =
               }
             , Cmd.none
             )
+
+        BackfillPrioritiesResponse {} ->
+            ( model, Cmd.none )
 
         DeleteWaypointResponse id {} ->
             ( { model
@@ -610,6 +620,8 @@ viewHome model data =
                  else
                     Ui.button ClickAddWaypoint consts.strings.add
                 )
+            |> Ui.append
+                (Ui.button ClickBackfillPriorities consts.strings.backfill)
         )
 
 
@@ -933,6 +945,9 @@ requestToCmd token request =
         AddWaypoint r ->
             Endpoint.request Api.waypointAdd r (tagWith AddWaypointResponse)
 
+        BackfillPriorities ->
+            Endpoint.request Api.prioritiesBackfill (tagWith BackfillPrioritiesResponse)
+
         SetWaypointCompleted r ->
             Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
 
@@ -953,6 +968,9 @@ requestSafety request =
     case request of
         AddWaypoint _ ->
             NetworkQueue.Unsafe
+
+        BackfillPriorities ->
+            NetworkQueue.Idempotent
 
         SetWaypointCompleted _ ->
             NetworkQueue.Idempotent
@@ -977,6 +995,7 @@ subscriptions model =
 consts =
     { strings =
         { add = "+"
+        , backfill = "backfill"
         , delete = "⨉"
         , complete = "☑"
         , incomplete = "☐"

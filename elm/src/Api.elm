@@ -153,14 +153,14 @@ waypointDelete =
     post
         (apiBase ++ [ Endpoint.fixed "delete-waypoint" ])
         (bytesRequest w3_decode_WaypointDeleteRequest w3_encode_WaypointDeleteRequest)
-        (bytesResponse w3_decode_WaypoinyDeleteResponse w3_encode_WaypoinyDeleteResponse)
+        emptyResponse
 
 
 waypointSetCompleted =
     post
         (apiBase ++ [ Endpoint.fixed "waypoint-set-completed" ])
         (bytesRequest w3_decode_WaypointSetCompletedRequest w3_encode_WaypointSetCompletedRequest)
-        (bytesResponse w3_decode_WaypointSetCompletedResponse w3_encode_WaypointSetCompletedResponse)
+        emptyResponse
 
 
 waypointSetPriority =
@@ -174,7 +174,7 @@ waypointSetPriority2 =
     post
         (apiBase ++ [ Endpoint.fixed "waypoint-set-priority-2" ])
         (bytesRequest w3_decode_WaypointSetPriorityRequest2 w3_encode_WaypointSetPriorityRequest2)
-        (bytesResponse w3_decode_WaypointSetPriorityResponse2 w3_encode_WaypointSetPriorityResponse2)
+        emptyResponse
 
 
 type alias PrioritiesResponse =
@@ -193,18 +193,10 @@ type alias WaypointDeleteRequest =
     { id : WaypointId }
 
 
-type alias WaypoinyDeleteResponse =
-    {}
-
-
 type alias WaypointSetCompletedRequest =
     { id : WaypointId
     , completed : Bool
     }
-
-
-type alias WaypointSetCompletedResponse =
-    {}
 
 
 type alias WaypointSetPriorityRequest =
@@ -223,10 +215,6 @@ type alias WaypointSetPriorityRequest2 =
     }
 
 
-type alias WaypointSetPriorityResponse2 =
-    {}
-
-
 withRequest =
     Endpoint.mapResponse (\handler impl request -> handler (impl request) request)
 
@@ -239,8 +227,8 @@ emptyRequest :
         -> (Result Http.Error t -> msg)
         -> Cmd msg
     , decodeRequest :
-        Backend.Interop.Request -> ConcurrentTask.ConcurrentTask () ()
-    , applyRequest : () -> impl -> impl
+        Backend.Interop.Request -> ConcurrentTask.ConcurrentTask () {}
+    , applyRequest : {} -> impl -> impl
     }
 emptyRequest =
     { encodeRequest = \fn method path -> fn method path Http.emptyBody
@@ -250,12 +238,32 @@ emptyRequest =
                 |> ConcurrentTask.andThen
                     (\body ->
                         if Bytes.width body == 0 then
-                            ConcurrentTask.succeed ()
+                            ConcurrentTask.succeed {}
 
                         else
                             ConcurrentTask.fail ()
                     )
     , applyRequest = always identity
+    }
+
+
+emptyResponse :
+    { expectResponse : (Result Http.Error {} -> msg) -> Http.Expect msg
+    , handleResult :
+        ConcurrentTask.ConcurrentTask x t
+        -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
+    }
+emptyResponse =
+    { expectResponse = \tag -> Http.expectWhatever (Result.map (\() -> {}) >> tag)
+    , handleResult =
+        \impl ->
+            impl
+                |> ConcurrentTask.andThenDo
+                    (Backend.Interop.getResponse
+                        { status = 200
+                        , body = Bytes.Encode.encode (Bytes.Encode.sequence [])
+                        }
+                    )
     }
 
 

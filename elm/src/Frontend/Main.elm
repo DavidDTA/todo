@@ -17,6 +17,7 @@ import KeyDict
 import List.Extra
 import Maybe.Extra
 import NetworkQueue
+import SortKey
 import Strings
 import Task
 import Ui
@@ -30,7 +31,7 @@ type RemoteData
         }
     | Error
     | Data
-        { priorities : List Api.WaypointId
+        { priorities : List { priority : String, waypointId : Api.WaypointId }
         , sccNodeIds : KeyDict.KeyDict Api.WaypointId String Graph.NodeId
         , waypoints : KeyDict.KeyDict Api.WaypointId String Api.Waypoint
         , graph : Graph.Graph (Graph.Graph Api.WaypointId ()) ()
@@ -72,7 +73,7 @@ type UserAction
             , methodName : String
             , args : List Json.Decode.Value
             }
-        , selection : Maybe { id : Api.WaypointId, priorityIndex : Maybe Int }
+        , selection : Maybe { id : Api.WaypointId, priority : Maybe String }
         }
 
 
@@ -80,7 +81,7 @@ type NetworkRequest
     = AddWaypoint { text : String }
     | BackfillPriorities
     | SetWaypointCompleted { id : Api.WaypointId, completed : Bool }
-    | SetWaypointPriority { id : Api.WaypointId, priorityIndex : Maybe Int }
+    | SetWaypointPriority { id : Api.WaypointId, priority : Maybe String }
     | DeleteWaypoint { id : Api.WaypointId }
     | InitWaypoints
     | InitPriorities
@@ -91,7 +92,7 @@ type NetworkResponse
     | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
     | BackfillPrioritiesResponse {}
-    | SetWaypointPriorityResponse (List Api.WaypointId)
+    | SetWaypointPriorityResponse { id : Api.WaypointId, priority : Maybe String } {}
     | DeleteWaypointResponse Api.WaypointId {}
     | SetWaypointCompletedResponse { id : Api.WaypointId, completed : Bool } {}
 
@@ -325,12 +326,14 @@ updateForNetworkResponse response model =
             , Cmd.none
             )
 
-        SetWaypointPriorityResponse priorities ->
+        SetWaypointPriorityResponse { id, priority } {} ->
             ( { model
                 | data =
                     updateData
-                        (\data ->
-                            { data | priorities = priorities }
+                        (\{ priorities, waypoints } ->
+                            { priorities = priorities
+                            , waypoints = Api.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | priority = priority })) waypoints
+                            }
                         )
                         model.data
               }
@@ -373,8 +376,18 @@ updateData fn remoteData =
             buildData (fn data)
 
 
-buildData { priorities, waypoints } =
+buildData { waypoints } =
     let
+        priorities =
+            waypoints
+                |> Api.waypointIdKeyDict .toList
+                |> List.filterMap
+                    (\( id, waypoint ) ->
+                        waypoint.priority
+                            |> Maybe.map (\priority -> { waypointId = id, priority = priority })
+                    )
+                |> List.sortBy (\{ waypointId, priority } -> [ priority, Api.unwrapWaypointId waypointId ])
+
         addIfMissing id dict =
             Api.waypointIdKeyDict .update
                 id
@@ -392,9 +405,7 @@ buildData { priorities, waypoints } =
             List.foldl
                 addIfMissing
                 (Api.waypointIdKeyDict .empty)
-                (priorities
-                    ++ Api.waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints
-                )
+                (Api.waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints)
 
         graph =
             Graph.fromNodesAndEdges
@@ -632,8 +643,21 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
 
         Just { text, completed } ->
             let
+                prioritiesFilteredForCompletion =
+                    List.filter
+                        (\priority ->
+                            completed
+                                || (Api.waypointIdKeyDict .get priority.waypointId waypoints
+                                        |> Maybe.Extra.unwrap True (.completed >> not)
+                                   )
+                        )
+                        priorities
+
                 priorityIndex =
-                    List.Extra.elemIndex waypointId priorities
+                    List.Extra.findIndex (.waypointId >> (==) waypointId) prioritiesFilteredForCompletion
+
+                prioritiesFilteredWithThisRemoved =
+                    List.filter (.waypointId >> (/=) waypointId) prioritiesFilteredForCompletion
             in
             Ui.heading text
                 |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) consts.strings.delete)
@@ -648,53 +672,55 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                     )
                 |> Ui.append
                     (Ui.select
-                        (priorities
-                            |> List.filterMap
-                                (\priorityId ->
-                                    if priorityId == waypointId then
-                                        Nothing
-
-                                    else
-                                        Just
-                                            { text =
-                                                Api.waypointIdKeyDict .get priorityId waypoints
-                                                    |> Maybe.map .text
-                                                    |> Maybe.withDefault Strings.unknownWaypoint
-                                            , selected = False
-                                            , msg = Nothing
-                                            }
+                        (prioritiesFilteredWithThisRemoved
+                            |> List.map
+                                (\priority ->
+                                    { text =
+                                        Api.waypointIdKeyDict .get priority.waypointId waypoints
+                                            |> Maybe.map .text
+                                            |> Maybe.withDefault Strings.unknownWaypoint
+                                    , selected = False
+                                    , msg = Nothing
+                                    }
                                 )
                             |> List.Extra.interweave
-                                (List.range 0
-                                    (List.length priorities
-                                        - (if priorityIndex == Nothing then
-                                            0
+                                (List.map3
+                                    (\before after index ->
+                                        { text =
+                                            if Just index == priorityIndex then
+                                                text
 
-                                           else
-                                            1
-                                          )
+                                            else
+                                                ""
+                                        , selected = False
+                                        , msg =
+                                            Just
+                                                { id = waypointId
+                                                , priority =
+                                                    if Just index == priorityIndex then
+                                                        Nothing
+
+                                                    else
+                                                        Just
+                                                            (case ( before, after ) of
+                                                                ( Nothing, Nothing ) ->
+                                                                    SortKey.init
+
+                                                                ( Nothing, Just after_ ) ->
+                                                                    SortKey.before after_.priority
+
+                                                                ( Just before_, Nothing ) ->
+                                                                    SortKey.after before_.priority
+
+                                                                ( Just before_, Just after_ ) ->
+                                                                    SortKey.between before_.priority after_.priority
+                                                            )
+                                                }
+                                        }
                                     )
-                                    |> List.map
-                                        (\index ->
-                                            { text =
-                                                if List.Extra.getAt index priorities == Just waypointId then
-                                                    text
-
-                                                else
-                                                    ""
-                                            , selected = False
-                                            , msg =
-                                                Just
-                                                    { id = waypointId
-                                                    , priorityIndex =
-                                                        if Just index == priorityIndex then
-                                                            Nothing
-
-                                                        else
-                                                            Just index
-                                                    }
-                                            }
-                                        )
+                                    ([ Nothing ] ++ List.map Just prioritiesFilteredWithThisRemoved)
+                                    (List.map Just prioritiesFilteredWithThisRemoved ++ [ Nothing ])
+                                    (List.range 0 (List.length prioritiesFilteredWithThisRemoved))
                                 )
                             |> (::)
                                 { text =
@@ -783,15 +809,14 @@ viewWaypoints filter { priorities, sccNodeIds, graph, waypoints } =
                                                     , completed = waypoint.completed
                                                     , highlight = highlight
                                                     , id = id
-                                                    , priority = List.member id priorities
+                                                    , priority = Maybe.Extra.isJust waypoint.priority
                                                     , url = waypoint.url
                                                     }
 
                                             Nothing ->
                                                 viewWaypointRowPrimitive
                                                     { text = Strings.unknownWaypoint
-                                                    , starred =
-                                                        List.member id priorities
+                                                    , starred = False
                                                     , id = id
                                                     , highlight = highlight
                                                     , strikethrough = False
@@ -811,12 +836,12 @@ squeeze priorities sccNodeIds graph =
         nodePriorities =
             priorities
                 |> List.indexedMap
-                    (\priorityIndex priorityWaypointId ->
+                    (\priorityIndex priority ->
                         { transitiveSccNodeIds =
                             Graph.guidedDfs
                                 Graph.alongOutgoingEdges
                                 ((\{ node } -> (::) node.id) |> Graph.onDiscovery)
-                                ([ Api.waypointIdKeyDict .get priorityWaypointId sccNodeIds ] |> List.filterMap identity)
+                                ([ Api.waypointIdKeyDict .get priority.waypointId sccNodeIds ] |> List.filterMap identity)
                                 []
                                 graph
                                 |> Tuple.first
@@ -952,7 +977,7 @@ requestToCmd token request =
             Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
 
         SetWaypointPriority r ->
-            Endpoint.request Api.waypointSetPriority r (tagWith SetWaypointPriorityResponse)
+            Endpoint.request Api.waypointSetPriority2 r (tagWith (SetWaypointPriorityResponse r))
 
         DeleteWaypoint r ->
             Endpoint.request Api.waypointDelete r (tagWith (DeleteWaypointResponse r.id))

@@ -180,7 +180,7 @@ waypointSetPriority2 =
 
 prioritiesBackfill =
     post
-        (apiBase ++ [ Endpoint.fixed "priorities-backfill" ])
+        (apiBase ++ [ Endpoint.fixed "priorities-backfill-2" ])
         emptyRequest
         emptyResponse
 

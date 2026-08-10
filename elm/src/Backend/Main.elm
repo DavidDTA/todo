@@ -148,9 +148,7 @@ formatUnexpectedError unexpectedError =
 
 handlers =
     Endpoint.handlers (\request -> Backend.Interop.getLegacyResponse request)
-        |> Endpoint.addHandler Api.priorities getPriorities
         |> Endpoint.addHandler Api.waypoints getWaypoints
-        |> Endpoint.addHandler Api.prioritiesBackfill prioritiesBackfill
         |> Endpoint.addHandler Api.waypointAdd
             (\{ text } ->
                 Backend.Interop.withKv
@@ -193,16 +191,13 @@ handlers =
                     )
             )
         |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
-        |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
         |> Endpoint.addHandler Api.waypointSetPriority2 waypointSetPriority2
         |> Endpoint.addHandler Api.export
-            (ConcurrentTask.map2
-                (\priorities_ waypoints_ ->
-                    { priorities = priorities_
-                    , waypoints = waypoints_
+            (ConcurrentTask.map
+                (\waypoints_ ->
+                    { waypoints = waypoints_
                     }
                 )
-                getPriorities
                 getWaypoints
             )
         |> Endpoint.mapHandlers
@@ -228,41 +223,6 @@ handlers =
                     }
             )
         |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
-
-
-getPriorities =
-    Backend.Interop.withKv
-        (\kv ->
-            Backend.Storage.prioritiesList kv
-        )
-        |> ConcurrentTask.mapError
-            (\error ->
-                case error of
-                    Backend.Storage.PrioritiesListDecodeError log ->
-                        InternalError { log = log }
-            )
-
-
-prioritiesBackfill =
-    Backend.Interop.withKv
-        (\kv ->
-            transact kv
-                (\op ->
-                    Backend.Storage.prioritiesBackfill kv op
-                )
-        )
-        |> ConcurrentTask.mapError
-            (\error ->
-                case error of
-                    Backend.Storage.PrioritiesBackfillPrioritiesDecodeError log ->
-                        InternalError { log = log }
-
-                    Backend.Storage.PrioritiesBackfillMissingWaypoint log ->
-                        InternalError { log = log }
-
-                    Backend.Storage.PrioritiesBackfillWaypointDecodeError log ->
-                        InternalError { log = log }
-            )
 
 
 getWaypoints =
@@ -321,23 +281,6 @@ waypointSetCompleted { id, completed } =
                         NotAuthorized { log = log }
 
                     Backend.Storage.WaypointSetCompletedDecodeError log ->
-                        InternalError { log = log }
-            )
-
-
-waypointSetPriority { id, priorityIndex } =
-    Backend.Interop.withKv
-        (\kv ->
-            transact kv
-                (\op ->
-                    Backend.Storage.waypointSetPriority kv op id priorityIndex
-                )
-                |> ConcurrentTask.map .result
-        )
-        |> ConcurrentTask.mapError
-            (\error ->
-                case error of
-                    Backend.Storage.WaypointSetPriorityDecodeError log ->
                         InternalError { log = log }
             )
 

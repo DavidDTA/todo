@@ -10,14 +10,11 @@ module Api exposing
     , home
     , internalServerError
     , login
-    , priorities
-    , prioritiesBackfill
     , unwrapWaypointId
     , waypointAdd
     , waypointDelete
     , waypointIdKeyDict
     , waypointSetCompleted
-    , waypointSetPriority
     , waypointSetPriority2
     , waypoints
     , wrapWaypointId
@@ -82,10 +79,7 @@ export =
         (jsonResponse
             (\response ->
                 Json.Encode.object
-                    [ ( "priorities"
-                      , Json.Encode.list (unwrapWaypointId >> Json.Encode.string) response.priorities
-                      )
-                    , ( "waypoints"
+                    [ ( "waypoints"
                       , response.waypoints
                             |> List.map
                                 (\{ id, waypoint } ->
@@ -124,19 +118,6 @@ login =
         opaqueResponse
 
 
-priorities :
-    Endpoint.Endpoint
-        ((Result Http.Error (List WaypointId) -> msg) -> Cmd msg)
-        (ConcurrentTask.ConcurrentTask x (List WaypointId)
-         -> Backend.Interop.Request
-         -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
-        )
-priorities =
-    get
-        (apiBase ++ [ Endpoint.fixed "priorities" ])
-        (bytesResponse w3_decode_PrioritiesResponse w3_encode_PrioritiesResponse)
-
-
 waypoints =
     get
         (apiBase ++ [ Endpoint.fixed "waypoints" ])
@@ -164,29 +145,11 @@ waypointSetCompleted =
         emptyResponse
 
 
-waypointSetPriority =
-    post
-        (apiBase ++ [ Endpoint.fixed "waypoint-set-priority" ])
-        (bytesRequest w3_decode_WaypointSetPriorityRequest w3_encode_WaypointSetPriorityRequest)
-        (bytesResponse w3_decode_WaypointSetPriorityResponse w3_encode_WaypointSetPriorityResponse)
-
-
 waypointSetPriority2 =
     post
         (apiBase ++ [ Endpoint.fixed "waypoint-set-priority-2" ])
         (bytesRequest w3_decode_WaypointSetPriorityRequest2 w3_encode_WaypointSetPriorityRequest2)
         emptyResponse
-
-
-prioritiesBackfill =
-    post
-        (apiBase ++ [ Endpoint.fixed "priorities-backfill-2" ])
-        emptyRequest
-        emptyResponse
-
-
-type alias PrioritiesResponse =
-    List WaypointId
 
 
 type alias WaypointAddRequest =
@@ -205,16 +168,6 @@ type alias WaypointSetCompletedRequest =
     { id : WaypointId
     , completed : Bool
     }
-
-
-type alias WaypointSetPriorityRequest =
-    { id : WaypointId
-    , priorityIndex : Maybe Int
-    }
-
-
-type alias WaypointSetPriorityResponse =
-    PrioritiesResponse
 
 
 type alias WaypointSetPriorityRequest2 =

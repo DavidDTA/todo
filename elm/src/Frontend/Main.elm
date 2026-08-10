@@ -26,8 +26,7 @@ import Url
 
 type RemoteData
     = Loading
-        { priorities : Maybe (List Api.WaypointId)
-        , waypoints : Maybe (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
+        { waypoints : Maybe (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
         }
     | Error
     | Data
@@ -63,7 +62,6 @@ type Msg
 
 type UserAction
     = ClickAddWaypoint
-    | ClickBackfillPriorities
     | ClickCompleteWaypoint Api.WaypointId
     | ClickDeleteWaypoint Api.WaypointId
     | ChangeInput String
@@ -79,19 +77,15 @@ type UserAction
 
 type NetworkRequest
     = AddWaypoint { text : String }
-    | BackfillPriorities
     | SetWaypointCompleted { id : Api.WaypointId, completed : Bool }
     | SetWaypointPriority { id : Api.WaypointId, priority : Maybe String }
     | DeleteWaypoint { id : Api.WaypointId }
     | InitWaypoints
-    | InitPriorities
 
 
 type NetworkResponse
     = InitWaypointsResponse (List { id : Api.WaypointId, waypoint : Api.Waypoint })
-    | InitPrioritiesResponse (List Api.WaypointId)
     | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
-    | BackfillPrioritiesResponse {}
     | SetWaypointPriorityResponse { id : Api.WaypointId, priority : Maybe String } {}
     | DeleteWaypointResponse Api.WaypointId {}
     | SetWaypointCompletedResponse { id : Api.WaypointId, completed : Bool } {}
@@ -115,7 +109,7 @@ main =
 
 init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( { data = Loading { priorities = Nothing, waypoints = Nothing }
+    ( { data = Loading { waypoints = Nothing }
       , input = ""
       , screen = parseScreen url.path
       , navigationKey = key
@@ -143,7 +137,6 @@ update msg model =
         DelayedInit ->
             ( model, Cmd.none )
                 |> makeNetworkRequest InitWaypoints
-                |> makeNetworkRequest InitPriorities
 
         NetworkResponse { token, result } ->
             case result of
@@ -182,10 +175,6 @@ update msg model =
                       }
                     , Cmd.none
                     )
-
-                ClickBackfillPriorities ->
-                    ( model, Cmd.none )
-                        |> makeNetworkRequest BackfillPriorities
 
                 ClickAddWaypoint ->
                     ( { model
@@ -252,16 +241,6 @@ update msg model =
 
 updateForNetworkResponse response model =
     case response of
-        InitPrioritiesResponse value ->
-            ( { model
-                | data =
-                    initData
-                        (\loading -> { loading | priorities = Just value })
-                        model.data
-              }
-            , Cmd.none
-            )
-
         InitWaypointsResponse value ->
             ( { model
                 | data =
@@ -294,9 +273,6 @@ updateForNetworkResponse response model =
               }
             , Cmd.none
             )
-
-        BackfillPrioritiesResponse {} ->
-            ( model, Cmd.none )
 
         DeleteWaypointResponse id {} ->
             ( { model
@@ -353,14 +329,13 @@ initData updateLoading data =
 
 
 resolveData loading =
-    case ( loading.priorities, loading.waypoints ) of
-        ( Just priorities, Just waypoints ) ->
+    case loading.waypoints of
+        Just waypoints ->
             buildData
-                { priorities = priorities
-                , waypoints = waypoints
+                { waypoints = waypoints
                 }
 
-        _ ->
+        Nothing ->
             Loading loading
 
 
@@ -631,8 +606,6 @@ viewHome model data =
                  else
                     Ui.button ClickAddWaypoint consts.strings.add
                 )
-            |> Ui.append
-                (Ui.button ClickBackfillPriorities consts.strings.backfill)
         )
 
 
@@ -970,9 +943,6 @@ requestToCmd token request =
         AddWaypoint r ->
             Endpoint.request Api.waypointAdd r (tagWith AddWaypointResponse)
 
-        BackfillPriorities ->
-            Endpoint.request Api.prioritiesBackfill (tagWith BackfillPrioritiesResponse)
-
         SetWaypointCompleted r ->
             Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
 
@@ -985,17 +955,11 @@ requestToCmd token request =
         InitWaypoints ->
             Endpoint.request Api.waypoints (tagWith InitWaypointsResponse)
 
-        InitPriorities ->
-            Endpoint.request Api.priorities (tagWith InitPrioritiesResponse)
-
 
 requestSafety request =
     case request of
         AddWaypoint _ ->
             NetworkQueue.Unsafe
-
-        BackfillPriorities ->
-            NetworkQueue.Idempotent
 
         SetWaypointCompleted _ ->
             NetworkQueue.Idempotent
@@ -1009,9 +973,6 @@ requestSafety request =
         InitWaypoints ->
             NetworkQueue.Safe
 
-        InitPriorities ->
-            NetworkQueue.Safe
-
 
 subscriptions model =
     Sub.none
@@ -1020,7 +981,6 @@ subscriptions model =
 consts =
     { strings =
         { add = "+"
-        , backfill = "backfill"
         , delete = "⨉"
         , complete = "☑"
         , incomplete = "☐"

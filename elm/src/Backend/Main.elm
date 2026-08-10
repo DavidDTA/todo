@@ -191,7 +191,7 @@ handlers =
                     )
             )
         |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
-        |> Endpoint.addHandler Api.waypointSetPriority2 waypointSetPriority2
+        |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
         |> Endpoint.addHandler Api.export
             (ConcurrentTask.map
                 (\waypoints_ ->
@@ -285,12 +285,12 @@ waypointSetCompleted { id, completed } =
             )
 
 
-waypointSetPriority2 { id, priority } =
+waypointSetPriority { id, priority } =
     Backend.Interop.withKv
         (\kv ->
             transact kv
                 (\op ->
-                    Backend.Storage.waypointSetPriority2 kv op id priority
+                    Backend.Storage.waypointSetPriority kv op id priority
                         |> ConcurrentTask.return {}
                 )
                 |> ConcurrentTask.map .result
@@ -298,10 +298,10 @@ waypointSetPriority2 { id, priority } =
         |> ConcurrentTask.mapError
             (\error ->
                 case error of
-                    Backend.Storage.WaypointSetPriority2MissingWaypoint log ->
+                    Backend.Storage.WaypointSetPriorityMissingWaypoint log ->
                         NotAuthorized { log = log }
 
-                    Backend.Storage.WaypointSetPriority2DecodeError log ->
+                    Backend.Storage.WaypointSetPriorityDecodeError log ->
                         InternalError { log = log }
             )
 

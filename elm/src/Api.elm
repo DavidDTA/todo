@@ -15,7 +15,7 @@ module Api exposing
     , waypointDelete
     , waypointIdKeyDict
     , waypointSetCompleted
-    , waypointSetPriority2
+    , waypointSetPriority
     , waypoints
     , wrapWaypointId
     )
@@ -145,10 +145,10 @@ waypointSetCompleted =
         emptyResponse
 
 
-waypointSetPriority2 =
+waypointSetPriority =
     post
-        (apiBase ++ [ Endpoint.fixed "waypoint-set-priority-2" ])
-        (bytesRequest w3_decode_WaypointSetPriorityRequest2 w3_encode_WaypointSetPriorityRequest2)
+        (apiBase ++ [ Endpoint.fixed "waypoint-set-priority" ])
+        (bytesRequest w3_decode_WaypointSetPriorityRequest w3_encode_WaypointSetPriorityRequest)
         emptyResponse
 
 
@@ -170,7 +170,7 @@ type alias WaypointSetCompletedRequest =
     }
 
 
-type alias WaypointSetPriorityRequest2 =
+type alias WaypointSetPriorityRequest =
     { id : WaypointId
     , priority : Maybe String
     }

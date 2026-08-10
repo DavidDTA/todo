@@ -1,11 +1,11 @@
 module Backend.Storage exposing
     ( WaypointSetCompletedError(..)
-    , WaypointSetPriority2Error(..)
+    , WaypointSetPriorityError(..)
     , WaypointsListError(..)
     , waypointAdd
     , waypointDelete
     , waypointSetCompleted
-    , waypointSetPriority2
+    , waypointSetPriority
     , waypointsList
     )
 
@@ -31,9 +31,9 @@ type WaypointSetCompletedError
     | WaypointSetCompletedDecodeError Backend.Interop.Log
 
 
-type WaypointSetPriority2Error
-    = WaypointSetPriority2MissingWaypoint Backend.Interop.Log
-    | WaypointSetPriority2DecodeError Backend.Interop.Log
+type WaypointSetPriorityError
+    = WaypointSetPriorityMissingWaypoint Backend.Interop.Log
+    | WaypointSetPriorityDecodeError Backend.Interop.Log
 
 
 waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
@@ -65,17 +65,17 @@ waypointSetCompleted kv op id completed =
             )
 
 
-waypointSetPriority2 kv op id priority =
+waypointSetPriority kv op id priority =
     let
         key =
             keys.waypoint id
     in
-    kvGet kv key decodeWaypoint WaypointSetPriority2DecodeError
+    kvGet kv key decodeWaypoint WaypointSetPriorityDecodeError
         |> ConcurrentTask.andThen
             (\entry ->
                 case entry of
                     Nothing ->
-                        ConcurrentTask.fail (WaypointSetPriority2MissingWaypoint (logMissingValue key))
+                        ConcurrentTask.fail (WaypointSetPriorityMissingWaypoint (logMissingValue key))
 
                     Just { versionstamp, value } ->
                         Backend.Interop.atomicOpCheck op { key = key, versionstamp = Just versionstamp }

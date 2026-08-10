@@ -947,7 +947,7 @@ requestToCmd token request =
             Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
 
         SetWaypointPriority r ->
-            Endpoint.request Api.waypointSetPriority2 r (tagWith (SetWaypointPriorityResponse r))
+            Endpoint.request Api.waypointSetPriority r (tagWith (SetWaypointPriorityResponse r))
 
         DeleteWaypoint r ->
             Endpoint.request Api.waypointDelete r (tagWith (DeleteWaypointResponse r.id))

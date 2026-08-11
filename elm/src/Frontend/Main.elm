@@ -631,6 +631,44 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
 
                 prioritiesFilteredWithThisRemoved =
                     List.filter (.waypointId >> (/=) waypointId) prioritiesFilteredForCompletion
+
+                seeds =
+                    data.graph
+                        |> Graph.nodes
+                        |> List.filter
+                            (\n ->
+                                Graph.nodes n.label
+                                    |> List.any (\{ label } -> waypointId == label)
+                            )
+                        |> List.map .id
+
+                transitiveRequires =
+                    Graph.guidedDfs
+                        Graph.alongOutgoingEdges
+                        (Graph.onDiscovery
+                            (\{ node } acc ->
+                                Graph.nodes node.label
+                                    |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                            )
+                        )
+                        seeds
+                        (Api.waypointIdKeyDict .empty)
+                        data.graph
+                        |> Tuple.first
+
+                transitiveRequiredBy =
+                    Graph.guidedDfs
+                        Graph.alongIncomingEdges
+                        (Graph.onDiscovery
+                            (\{ node } acc ->
+                                Graph.nodes node.label
+                                    |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                            )
+                        )
+                        seeds
+                        (Api.waypointIdKeyDict .empty)
+                        data.graph
+                        |> Tuple.first
             in
             Ui.heading text
                 |> Ui.append (Ui.button (ClickDeleteWaypoint waypointId) consts.strings.delete)
@@ -709,48 +747,12 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                         )
                         SelectWaypointPriority
                     )
+                |> Ui.append (Ui.heading consts.strings.requires)
                 |> Ui.append
-                    (let
-                        seeds =
-                            data.graph
-                                |> Graph.nodes
-                                |> List.filter
-                                    (\n ->
-                                        Graph.nodes n.label
-                                            |> List.any (\{ label } -> waypointId == label)
-                                    )
-                                |> List.map .id
-
-                        transitiveRequires =
-                            Graph.guidedDfs
-                                Graph.alongOutgoingEdges
-                                (Graph.onDiscovery
-                                    (\{ node } acc ->
-                                        Graph.nodes node.label
-                                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
-                                    )
-                                )
-                                seeds
-                                (Api.waypointIdKeyDict .empty)
-                                data.graph
-                                |> Tuple.first
-
-                        transitiveRequiredBy =
-                            Graph.guidedDfs
-                                Graph.alongIncomingEdges
-                                (Graph.onDiscovery
-                                    (\{ node } acc ->
-                                        Graph.nodes node.label
-                                            |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
-                                    )
-                                )
-                                seeds
-                                (Api.waypointIdKeyDict .empty)
-                                data.graph
-                                |> Tuple.first
-                     in
-                     viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequires || Api.waypointIdKeyDict .member candidate transitiveRequiredBy) data
-                    )
+                    (viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequires && candidate /= waypointId) data)
+                |> Ui.append (Ui.heading consts.strings.requiredBy)
+                |> Ui.append
+                    (viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequiredBy && candidate /= waypointId) data)
 
 
 viewWaypoints filter { priorities, sccNodeIds, graph, waypoints } =
@@ -984,6 +986,8 @@ consts =
         , delete = "⨉"
         , complete = "☑"
         , incomplete = "☐"
+        , requires = "Requirements"
+        , requiredBy = "Required By"
         , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
         , unknownPath =
             \{ normal, link } ->

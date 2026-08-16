@@ -1,6 +1,7 @@
 module Backend.Main exposing (main)
 
 import Api
+import Atlas
 import Backend.Id
 import Backend.Interop
 import Backend.Storage
@@ -155,7 +156,7 @@ handlers =
                     (\kv ->
                         transact kv
                             (\op ->
-                                Backend.Id.generate Api.WaypointId
+                                Backend.Id.generate Atlas.WaypointId
                                     |> ConcurrentTask.andThen
                                         (\id ->
                                             Backend.Storage.waypointAdd op

@@ -1,6 +1,7 @@
 module Frontend.Main exposing (main)
 
 import Api
+import Atlas
 import Browser
 import Browser.Navigation
 import Css
@@ -26,14 +27,14 @@ import Url
 
 type RemoteData
     = Loading
-        { waypoints : Maybe (KeyDict.KeyDict Api.WaypointId String Api.Waypoint)
+        { waypoints : Maybe (KeyDict.KeyDict Atlas.WaypointId String Api.Waypoint)
         }
     | Error
     | Data
-        { priorities : List { priority : String, waypointId : Api.WaypointId }
-        , sccNodeIds : KeyDict.KeyDict Api.WaypointId String Graph.NodeId
-        , waypoints : KeyDict.KeyDict Api.WaypointId String Api.Waypoint
-        , graph : Graph.Graph (Graph.Graph Api.WaypointId ()) ()
+        { priorities : List { priority : String, waypointId : Atlas.WaypointId }
+        , sccNodeIds : KeyDict.KeyDict Atlas.WaypointId String Graph.NodeId
+        , waypoints : KeyDict.KeyDict Atlas.WaypointId String Api.Waypoint
+        , graph : Graph.Graph (Graph.Graph Atlas.WaypointId ()) ()
         }
 
 
@@ -48,7 +49,7 @@ type alias Model =
 
 type Screen
     = Home
-    | WaypointDetail Api.WaypointId
+    | WaypointDetail Atlas.WaypointId
     | Oops OopsReason
 
 
@@ -62,8 +63,8 @@ type Msg
 
 type UserAction
     = ClickAddWaypoint
-    | ClickCompleteWaypoint Api.WaypointId
-    | ClickDeleteWaypoint Api.WaypointId
+    | ClickCompleteWaypoint Atlas.WaypointId
+    | ClickDeleteWaypoint Atlas.WaypointId
     | ChangeInput String
     | SelectWaypointPriority
         { call :
@@ -71,24 +72,24 @@ type UserAction
             , methodName : String
             , args : List Json.Decode.Value
             }
-        , selection : Maybe { id : Api.WaypointId, priority : Maybe String }
+        , selection : Maybe { id : Atlas.WaypointId, priority : Maybe String }
         }
 
 
 type NetworkRequest
     = AddWaypoint { text : String }
-    | SetWaypointCompleted { id : Api.WaypointId, completed : Bool }
-    | SetWaypointPriority { id : Api.WaypointId, priority : Maybe String }
-    | DeleteWaypoint { id : Api.WaypointId }
+    | SetWaypointCompleted { id : Atlas.WaypointId, completed : Bool }
+    | SetWaypointPriority { id : Atlas.WaypointId, priority : Maybe String }
+    | DeleteWaypoint { id : Atlas.WaypointId }
     | InitWaypoints
 
 
 type NetworkResponse
-    = InitWaypointsResponse (List { id : Api.WaypointId, waypoint : Api.Waypoint })
-    | AddWaypointResponse { id : Api.WaypointId, waypoint : Api.Waypoint }
-    | SetWaypointPriorityResponse { id : Api.WaypointId, priority : Maybe String } {}
-    | DeleteWaypointResponse Api.WaypointId {}
-    | SetWaypointCompletedResponse { id : Api.WaypointId, completed : Bool } {}
+    = InitWaypointsResponse (List { id : Atlas.WaypointId, waypoint : Api.Waypoint })
+    | AddWaypointResponse { id : Atlas.WaypointId, waypoint : Api.Waypoint }
+    | SetWaypointPriorityResponse { id : Atlas.WaypointId, priority : Maybe String } {}
+    | DeleteWaypointResponse Atlas.WaypointId {}
+    | SetWaypointCompletedResponse { id : Atlas.WaypointId, completed : Bool } {}
 
 
 type OopsReason
@@ -125,7 +126,7 @@ parseScreen url =
             Home
 
         Just [ "detail", id ] ->
-            WaypointDetail (Api.WaypointId id)
+            WaypointDetail (Atlas.WaypointId id)
 
         _ ->
             Oops UnknownPath
@@ -195,7 +196,7 @@ update msg model =
                                     Nothing
 
                                 Data { waypoints } ->
-                                    Api.waypointIdKeyDict .get id waypoints
+                                    Atlas.waypointIdKeyDict .get id waypoints
 
                         makeRequest =
                             case wqypoint of
@@ -246,9 +247,9 @@ updateForNetworkResponse response model =
                 | data =
                     value
                         |> List.map (\{ id, waypoint } -> ( id, waypoint ))
-                        |> Api.waypointIdKeyDict .fromList
+                        |> Atlas.waypointIdKeyDict .fromList
                         |> (\keyDict ->
-                                if Api.waypointIdKeyDict .size keyDict == List.length value then
+                                if Atlas.waypointIdKeyDict .size keyDict == List.length value then
                                     initData
                                         (\loading -> { loading | waypoints = Just keyDict })
                                         model.data
@@ -266,7 +267,7 @@ updateForNetworkResponse response model =
                     updateData
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
-                            , waypoints = Api.waypointIdKeyDict .insert id waypoint waypoints
+                            , waypoints = Atlas.waypointIdKeyDict .insert id waypoint waypoints
                             }
                         )
                         model.data
@@ -280,7 +281,7 @@ updateForNetworkResponse response model =
                     updateData
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
-                            , waypoints = Api.waypointIdKeyDict .remove id waypoints
+                            , waypoints = Atlas.waypointIdKeyDict .remove id waypoints
                             }
                         )
                         model.data
@@ -294,7 +295,7 @@ updateForNetworkResponse response model =
                     updateData
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
-                            , waypoints = Api.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | completed = completed })) waypoints
+                            , waypoints = Atlas.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | completed = completed })) waypoints
                             }
                         )
                         model.data
@@ -308,7 +309,7 @@ updateForNetworkResponse response model =
                     updateData
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
-                            , waypoints = Api.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | priority = priority })) waypoints
+                            , waypoints = Atlas.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | priority = priority })) waypoints
                             }
                         )
                         model.data
@@ -355,21 +356,21 @@ buildData { waypoints } =
     let
         priorities =
             waypoints
-                |> Api.waypointIdKeyDict .toList
+                |> Atlas.waypointIdKeyDict .toList
                 |> List.filterMap
                     (\( id, waypoint ) ->
                         waypoint.priority
                             |> Maybe.map (\priority -> { waypointId = id, priority = priority })
                     )
-                |> List.sortBy (\{ waypointId, priority } -> [ priority, Api.unwrapWaypointId waypointId ])
+                |> List.sortBy (\{ waypointId, priority } -> [ priority, (\(Atlas.WaypointId id) -> id) waypointId ])
 
         addIfMissing id dict =
-            Api.waypointIdKeyDict .update
+            Atlas.waypointIdKeyDict .update
                 id
                 (\current ->
                     case current of
                         Nothing ->
-                            Just (Api.waypointIdKeyDict .size dict)
+                            Just (Atlas.waypointIdKeyDict .size dict)
 
                         Just _ ->
                             current
@@ -379,17 +380,17 @@ buildData { waypoints } =
         nodeIds =
             List.foldl
                 addIfMissing
-                (Api.waypointIdKeyDict .empty)
-                (Api.waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints)
+                (Atlas.waypointIdKeyDict .empty)
+                (Atlas.waypointIdKeyDict .foldl (\k v acc -> k :: v.requires ++ v.requiredBy ++ acc) [] waypoints)
 
         graph =
             Graph.fromNodesAndEdges
-                (Api.waypointIdKeyDict .foldl
+                (Atlas.waypointIdKeyDict .foldl
                     (\waypointId nodeId -> (::) { id = nodeId, label = waypointId })
                     []
                     nodeIds
                 )
-                (Api.waypointIdKeyDict .foldl
+                (Atlas.waypointIdKeyDict .foldl
                     (\waypointId waypoint acc ->
                         List.map
                             (\requirementWaypointId ->
@@ -407,14 +408,14 @@ buildData { waypoints } =
                     waypoints
                     |> List.concatMap
                         (\edge ->
-                            if Maybe.Extra.unwrap False .completed (Api.waypointIdKeyDict .get edge.from waypoints) then
+                            if Maybe.Extra.unwrap False .completed (Atlas.waypointIdKeyDict .get edge.from waypoints) then
                                 [ edge, { from = edge.to, to = edge.from } ]
 
                             else
                                 [ edge ]
                         )
                     |> List.filterMap
-                        (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (Api.waypointIdKeyDict .get edge.from nodeIds) (Api.waypointIdKeyDict .get edge.to nodeIds))
+                        (\edge -> Maybe.map2 (\from to -> { from = from, to = to, label = () }) (Atlas.waypointIdKeyDict .get edge.from nodeIds) (Atlas.waypointIdKeyDict .get edge.to nodeIds))
                 )
 
         stronglyConnectedComponents =
@@ -440,16 +441,16 @@ buildData { waypoints } =
 
         sccNodeIds =
             nodeIds
-                |> Api.waypointIdKeyDict .foldl
+                |> Atlas.waypointIdKeyDict .foldl
                     (\waypointId nodeId acc ->
                         case IntDict.get nodeId nodeIdToSccNodeId of
                             Nothing ->
                                 acc
 
                             Just sccNodeId ->
-                                Api.waypointIdKeyDict .insert waypointId sccNodeId acc
+                                Atlas.waypointIdKeyDict .insert waypointId sccNodeId acc
                     )
-                    (Api.waypointIdKeyDict .empty)
+                    (Atlas.waypointIdKeyDict .empty)
 
         sccGraph =
             Graph.fromNodeLabelsAndEdgePairs
@@ -489,7 +490,7 @@ buildData { waypoints } =
 
 
 graphToString =
-    Graph.toString (Api.unwrapWaypointId >> Just) (always Nothing)
+    Graph.toString ((\(Atlas.WaypointId id) -> id) >> Just) (always Nothing)
 
 
 sccGraphToString =
@@ -549,13 +550,13 @@ globalFilter input waypoints id =
                 |> List.map String.toLower
 
         text =
-            Api.waypointIdKeyDict .get id waypoints
+            Atlas.waypointIdKeyDict .get id waypoints
                 |> Maybe.map .text
                 |> Maybe.withDefault ""
                 |> String.toLower
 
         url =
-            Api.waypointIdKeyDict .get id waypoints
+            Atlas.waypointIdKeyDict .get id waypoints
                 |> Maybe.andThen .url
                 |> Maybe.withDefault ""
                 |> String.toLower
@@ -581,7 +582,7 @@ viewHome model data =
                         |> Graph.nodes
                         |> List.concatMap
                             (\n ->
-                                if List.all (\{ label } -> Maybe.Extra.unwrap False .completed (Api.waypointIdKeyDict .get label data.waypoints)) (Graph.nodes n.label) then
+                                if List.all (\{ label } -> Maybe.Extra.unwrap False .completed (Atlas.waypointIdKeyDict .get label data.waypoints)) (Graph.nodes n.label) then
                                     Graph.nodes n.label
                                         |> List.map .label
 
@@ -589,11 +590,11 @@ viewHome model data =
                                     []
                             )
                         |> List.map (\id -> ( id, {} ))
-                        |> Api.waypointIdKeyDict .fromList
+                        |> Atlas.waypointIdKeyDict .fromList
             in
-            viewWaypoints (\id -> not (Api.waypointIdKeyDict .member id filteredForCompletion)) data
+            viewWaypoints (\id -> not (Atlas.waypointIdKeyDict .member id filteredForCompletion)) data
                 |> Ui.append
-                    (viewWaypoints (\id -> Api.waypointIdKeyDict .member id filteredForCompletion) data)
+                    (viewWaypoints (\id -> Atlas.waypointIdKeyDict .member id filteredForCompletion) data)
 
          else
             viewWaypoints (globalFilter model.input data.waypoints) data
@@ -610,7 +611,7 @@ viewHome model data =
 
 
 viewDetail ({ waypoints, priorities } as data) waypointId =
-    case Api.waypointIdKeyDict .get waypointId waypoints of
+    case Atlas.waypointIdKeyDict .get waypointId waypoints of
         Nothing ->
             viewOops UnknownPath
 
@@ -620,7 +621,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                     List.filter
                         (\priority ->
                             completed
-                                || (Api.waypointIdKeyDict .get priority.waypointId waypoints
+                                || (Atlas.waypointIdKeyDict .get priority.waypointId waypoints
                                         |> Maybe.Extra.unwrap True (.completed >> not)
                                    )
                         )
@@ -648,11 +649,11 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                         (Graph.onDiscovery
                             (\{ node } acc ->
                                 Graph.nodes node.label
-                                    |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                                    |> List.foldl (\{ label } -> Atlas.waypointIdKeyDict .insert label ()) acc
                             )
                         )
                         seeds
-                        (Api.waypointIdKeyDict .empty)
+                        (Atlas.waypointIdKeyDict .empty)
                         data.graph
                         |> Tuple.first
 
@@ -662,11 +663,11 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                         (Graph.onDiscovery
                             (\{ node } acc ->
                                 Graph.nodes node.label
-                                    |> List.foldl (\{ label } -> Api.waypointIdKeyDict .insert label ()) acc
+                                    |> List.foldl (\{ label } -> Atlas.waypointIdKeyDict .insert label ()) acc
                             )
                         )
                         seeds
-                        (Api.waypointIdKeyDict .empty)
+                        (Atlas.waypointIdKeyDict .empty)
                         data.graph
                         |> Tuple.first
             in
@@ -687,7 +688,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                             |> List.map
                                 (\priority ->
                                     { text =
-                                        Api.waypointIdKeyDict .get priority.waypointId waypoints
+                                        Atlas.waypointIdKeyDict .get priority.waypointId waypoints
                                             |> Maybe.map .text
                                             |> Maybe.withDefault Strings.unknownWaypoint
                                     , selected = False
@@ -749,10 +750,10 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                     )
                 |> Ui.append (Ui.heading consts.strings.requires)
                 |> Ui.append
-                    (viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequires && candidate /= waypointId) data)
+                    (viewWaypoints (\candidate -> Atlas.waypointIdKeyDict .member candidate transitiveRequires && candidate /= waypointId) data)
                 |> Ui.append (Ui.heading consts.strings.requiredBy)
                 |> Ui.append
-                    (viewWaypoints (\candidate -> Api.waypointIdKeyDict .member candidate transitiveRequiredBy && candidate /= waypointId) data)
+                    (viewWaypoints (\candidate -> Atlas.waypointIdKeyDict .member candidate transitiveRequiredBy && candidate /= waypointId) data)
 
 
 viewWaypoints filter { priorities, sccNodeIds, graph, waypoints } =
@@ -773,7 +774,7 @@ viewWaypoints filter { priorities, sccNodeIds, graph, waypoints } =
                                             Nothing
 
                                     maybeWaypoint =
-                                        Api.waypointIdKeyDict .get id waypoints
+                                        Atlas.waypointIdKeyDict .get id waypoints
                                 in
                                 if filter id then
                                     Just
@@ -816,7 +817,7 @@ squeeze priorities sccNodeIds graph =
                             Graph.guidedDfs
                                 Graph.alongOutgoingEdges
                                 ((\{ node } -> (::) node.id) |> Graph.onDiscovery)
-                                ([ Api.waypointIdKeyDict .get priority.waypointId sccNodeIds ] |> List.filterMap identity)
+                                ([ Atlas.waypointIdKeyDict .get priority.waypointId sccNodeIds ] |> List.filterMap identity)
                                 []
                                 graph
                                 |> Tuple.first
@@ -913,7 +914,7 @@ viewWaypointRowPrimitive { highlight, starred, id, strikethrough, text, url } =
     { starred = starred
     , highlight = highlight
     , strikethrough = strikethrough
-    , targetUrl = Just (Endpoint.joinPath [ "detail", Api.unwrapWaypointId id ])
+    , targetUrl = Just (Endpoint.joinPath [ "detail", (\(Atlas.WaypointId id_) -> id_) id ])
     , content =
         Ui.text text
             |> Ui.append

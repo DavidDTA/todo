@@ -1,6 +1,5 @@
 module Api exposing
     ( Waypoint
-    , WaypointId(..)
     , Waypoints
     , appjs
     , badRequest
@@ -13,13 +12,13 @@ module Api exposing
     , unwrapWaypointId
     , waypointAdd
     , waypointDelete
-    , waypointIdKeyDict
     , waypointSetCompleted
     , waypointSetPriority
     , waypoints
     , wrapWaypointId
     )
 
+import Atlas
 import Backend.Interop
 import Bytes
 import Bytes.Decode
@@ -36,29 +35,25 @@ import SortKey
 import Url
 
 
-type WaypointId
-    = WaypointId String
-
-
 type alias Waypoint =
     { text : String
     , completed : Bool
     , priority : Maybe String
     , url : Maybe String
-    , requires : List WaypointId
-    , requiredBy : List WaypointId
+    , requires : List Atlas.WaypointId
+    , requiredBy : List Atlas.WaypointId
     }
 
 
 type alias Waypoints =
-    List { id : WaypointId, waypoint : Waypoint }
+    List { id : Atlas.WaypointId, waypoint : Waypoint }
 
 
 wrapWaypointId =
-    WaypointId
+    Atlas.WaypointId
 
 
-unwrapWaypointId (WaypointId s) =
+unwrapWaypointId (Atlas.WaypointId s) =
     s
 
 
@@ -157,21 +152,21 @@ type alias WaypointAddRequest =
 
 
 type alias WaypointAddResponse =
-    { id : WaypointId, waypoint : Waypoint }
+    { id : Atlas.WaypointId, waypoint : Waypoint }
 
 
 type alias WaypointDeleteRequest =
-    { id : WaypointId }
+    { id : Atlas.WaypointId }
 
 
 type alias WaypointSetCompletedRequest =
-    { id : WaypointId
+    { id : Atlas.WaypointId
     , completed : Bool
     }
 
 
 type alias WaypointSetPriorityRequest =
-    { id : WaypointId
+    { id : Atlas.WaypointId
     , priority : Maybe String
     }
 
@@ -430,7 +425,3 @@ internalServerError =
 
 emptyBody =
     Bytes.Encode.encode (Bytes.Encode.sequence [])
-
-
-waypointIdKeyDict =
-    KeyDict.define WaypointId (\(WaypointId id) -> id)

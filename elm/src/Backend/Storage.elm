@@ -9,7 +9,7 @@ module Backend.Storage exposing
     , waypointsList
     )
 
-import Api
+import Atlas
 import Backend.Interop
 import ConcurrentTask
 import Errors
@@ -36,13 +36,13 @@ type WaypointSetPriorityError
     | WaypointSetPriorityDecodeError Backend.Interop.Log
 
 
-waypointAdd : Backend.Interop.AtomicOperation -> Api.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
+waypointAdd : Backend.Interop.AtomicOperation -> Atlas.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
 waypointAdd op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
         |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = encodeWaypoint { text = text, completed = False, priority = Nothing } })
 
 
-waypointDelete : Backend.Interop.AtomicOperation -> Api.WaypointId -> ConcurrentTask.ConcurrentTask x ()
+waypointDelete : Backend.Interop.AtomicOperation -> Atlas.WaypointId -> ConcurrentTask.ConcurrentTask x ()
 waypointDelete op id =
     Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
 
@@ -136,7 +136,7 @@ waypointsList kv =
                                         [ Backend.Interop.StringKvKeyPart "waypoints", Backend.Interop.StringKvKeyPart id ] ->
                                             case Json.Decode.decodeValue decodeWaypoint item.value of
                                                 Ok value ->
-                                                    Ok { id = Api.WaypointId id, waypoint = value }
+                                                    Ok { id = Atlas.WaypointId id, waypoint = value }
 
                                                 Err error ->
                                                     Err (WaypointsListDecodeError (logKvDecodeError item.key error))
@@ -157,13 +157,13 @@ waypointsList kv =
 
 
 decodePriorities =
-    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map Api.wrapWaypointId Json.Decode.string))
+    Json.Decode.field "priorities" (Json.Decode.list (Json.Decode.map Atlas.WaypointId Json.Decode.string))
 
 
 encodePriorities priorities =
     Json.Encode.object
         [ ( "priorities"
-          , Json.Encode.list (Api.unwrapWaypointId >> Json.Encode.string) priorities
+          , Json.Encode.list ((\(Atlas.WaypointId id) -> id) >> Json.Encode.string) priorities
           )
         ]
 
@@ -207,7 +207,7 @@ keys =
     { waypoint =
         \id ->
             [ Backend.Interop.StringKvKeyPart "waypoints"
-            , Backend.Interop.StringKvKeyPart (Api.unwrapWaypointId id)
+            , Backend.Interop.StringKvKeyPart ((\(Atlas.WaypointId id_) -> id_) id)
             ]
     , waypointPrefix = [ Backend.Interop.StringKvKeyPart "waypoints" ]
     }

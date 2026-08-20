@@ -13,6 +13,7 @@ import Json.Decode
 import Json.Encode
 import Platform
 import Url
+import WaypointId
 
 
 type alias Model =
@@ -156,7 +157,7 @@ handlers =
                     (\kv ->
                         transact kv
                             (\op ->
-                                Backend.Id.generate Atlas.WaypointId
+                                Backend.Id.generate WaypointId.WaypointId
                                     |> ConcurrentTask.andThen
                                         (\id ->
                                             Backend.Storage.waypointAdd op

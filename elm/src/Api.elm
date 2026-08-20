@@ -33,6 +33,7 @@ import Lamdera.Wire3
 import Maybe.Extra
 import SortKey
 import Url
+import WaypointId
 
 
 type alias Waypoint =
@@ -40,20 +41,20 @@ type alias Waypoint =
     , completed : Bool
     , priority : Maybe String
     , url : Maybe String
-    , requires : List Atlas.WaypointId
-    , requiredBy : List Atlas.WaypointId
+    , requires : List WaypointId.WaypointId
+    , requiredBy : List WaypointId.WaypointId
     }
 
 
 type alias Waypoints =
-    List { id : Atlas.WaypointId, waypoint : Waypoint }
+    List { id : WaypointId.WaypointId, waypoint : Waypoint }
 
 
 wrapWaypointId =
-    Atlas.WaypointId
+    WaypointId.WaypointId
 
 
-unwrapWaypointId (Atlas.WaypointId s) =
+unwrapWaypointId (WaypointId.WaypointId s) =
     s
 
 
@@ -152,21 +153,21 @@ type alias WaypointAddRequest =
 
 
 type alias WaypointAddResponse =
-    { id : Atlas.WaypointId, waypoint : Waypoint }
+    { id : WaypointId.WaypointId, waypoint : Waypoint }
 
 
 type alias WaypointDeleteRequest =
-    { id : Atlas.WaypointId }
+    { id : WaypointId.WaypointId }
 
 
 type alias WaypointSetCompletedRequest =
-    { id : Atlas.WaypointId
+    { id : WaypointId.WaypointId
     , completed : Bool
     }
 
 
 type alias WaypointSetPriorityRequest =
-    { id : Atlas.WaypointId
+    { id : WaypointId.WaypointId
     , priority : Maybe String
     }
 

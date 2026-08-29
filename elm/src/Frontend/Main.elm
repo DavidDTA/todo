@@ -210,23 +210,8 @@ update msg model =
                         |> makeRequest
 
                 ClickDeleteWaypoint id ->
-                    ( { model
-                        | screen =
-                            case model.screen of
-                                Home ->
-                                    model.screen
-
-                                WaypointDetail detailId ->
-                                    if id == detailId then
-                                        Home
-
-                                    else
-                                        model.screen
-
-                                Oops _ ->
-                                    model.screen
-                      }
-                    , Cmd.none
+                    ( model
+                    , Browser.Navigation.back model.navigationKey 1
                     )
                         |> makeNetworkRequest (DeleteWaypoint { id = id })
 

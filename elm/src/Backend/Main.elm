@@ -194,6 +194,8 @@ handlers =
             )
         |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
         |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
+        |> Endpoint.addHandler Api.waypointAddDependency waypointAddDependency
+        |> Endpoint.addHandler Api.waypointRemoveDependency waypointRemoveDependency
         |> Endpoint.addHandler Api.export
             (ConcurrentTask.map
                 (\waypoints_ ->
@@ -241,7 +243,7 @@ getWaypoints =
                         , completed = waypoint.completed
                         , priority = waypoint.priority
                         , url = Nothing
-                        , requires = []
+                        , requires = waypoint.dependencies
                         , requiredBy = []
                         }
                     }
@@ -305,6 +307,86 @@ waypointSetPriority { id, priority } =
 
                     Backend.Storage.WaypointSetPriorityDecodeError log ->
                         InternalError { log = log }
+            )
+
+
+waypointAddDependency { from, to } =
+    Backend.Interop.withKv
+        (\kv ->
+            transact kv
+                (\op ->
+                    Backend.Storage.waypointAddDependency kv op { from = from, to = to }
+                        |> ConcurrentTask.return {}
+                )
+                |> ConcurrentTask.map .result
+        )
+        |> ConcurrentTask.mapError
+            (\errors ->
+                (Errors.toList errors
+                    |> List.foldl
+                        (\error acc ->
+                            case error of
+                                Backend.Storage.WaypointAddDependencyMissingWaypoint _ ->
+                                    NotAuthorized
+
+                                Backend.Storage.WaypointAddDependencyDecodeError _ ->
+                                    acc
+                        )
+                        InternalError
+                )
+                    { log =
+                        Errors.toList errors
+                            |> List.map
+                                (\error ->
+                                    case error of
+                                        Backend.Storage.WaypointAddDependencyMissingWaypoint log ->
+                                            log
+
+                                        Backend.Storage.WaypointAddDependencyDecodeError log ->
+                                            log
+                                )
+                            |> List.map (Json.Encode.list identity)
+                    }
+            )
+
+
+waypointRemoveDependency { from, to } =
+    Backend.Interop.withKv
+        (\kv ->
+            transact kv
+                (\op ->
+                    Backend.Storage.waypointRemoveDependency kv op { from = from, to = to }
+                        |> ConcurrentTask.return {}
+                )
+                |> ConcurrentTask.map .result
+        )
+        |> ConcurrentTask.mapError
+            (\errors ->
+                (Errors.toList errors
+                    |> List.foldl
+                        (\error acc ->
+                            case error of
+                                Backend.Storage.WaypointRemoveDependencyMissingWaypoint _ ->
+                                    NotAuthorized
+
+                                Backend.Storage.WaypointRemoveDependencyDecodeError _ ->
+                                    acc
+                        )
+                        InternalError
+                )
+                    { log =
+                        Errors.toList errors
+                            |> List.map
+                                (\error ->
+                                    case error of
+                                        Backend.Storage.WaypointRemoveDependencyMissingWaypoint log ->
+                                            log
+
+                                        Backend.Storage.WaypointRemoveDependencyDecodeError log ->
+                                            log
+                                )
+                            |> List.map (Json.Encode.list identity)
+                    }
             )
 
 

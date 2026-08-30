@@ -11,7 +11,9 @@ module Api exposing
     , login
     , unwrapWaypointId
     , waypointAdd
+    , waypointAddDependency
     , waypointDelete
+    , waypointRemoveDependency
     , waypointSetCompleted
     , waypointSetPriority
     , waypoints
@@ -127,6 +129,13 @@ waypointAdd =
         (bytesResponse w3_decode_WaypointAddResponse w3_encode_WaypointAddResponse)
 
 
+waypointAddDependency =
+    post
+        (apiBase ++ [ Endpoint.fixed "add-dependency" ])
+        (bytesRequest w3_decode_WaypointAddDependencyRequest w3_encode_WaypointAddDependencyRequest)
+        emptyResponse
+
+
 waypointDelete =
     post
         (apiBase ++ [ Endpoint.fixed "delete-waypoint" ])
@@ -148,12 +157,23 @@ waypointSetPriority =
         emptyResponse
 
 
+waypointRemoveDependency =
+    post
+        (apiBase ++ [ Endpoint.fixed "remove-dependency" ])
+        (bytesRequest w3_decode_WaypointRemoveDependencyRequest w3_encode_WaypointRemoveDependencyRequest)
+        emptyResponse
+
+
 type alias WaypointAddRequest =
     { text : String }
 
 
 type alias WaypointAddResponse =
     { id : WaypointId.WaypointId, waypoint : Waypoint }
+
+
+type alias WaypointAddDependencyRequest =
+    { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
 
 
 type alias WaypointDeleteRequest =
@@ -170,6 +190,10 @@ type alias WaypointSetPriorityRequest =
     { id : WaypointId.WaypointId
     , priority : Maybe String
     }
+
+
+type alias WaypointRemoveDependencyRequest =
+    { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
 
 
 withRequest =

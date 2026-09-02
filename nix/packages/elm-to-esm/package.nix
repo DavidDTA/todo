@@ -1,7 +1,14 @@
-{ bash, writeScriptBin }:
-    writeScriptBin "elm-to-esm" ''
-      #! ${bash}/bin/bash
-      set -e
+{ coreutils, writeShellApplication }:
+  writeShellApplication {
+    name = "elm-to-esm";
+    inheritPath = false;
+    runtimeInputs = [
+      coreutils
+    ];
+    text = ''
       file="''${1}"
-      cat <<<"export const Elm = function(){$(<"''${file}")return this;}.call({}).Elm;" >"''${file}"
-    ''
+
+      content="export const Elm = function(){$(<"''${file}")return this;}.call({}).Elm;"
+      cat <<<"''${content}" >"''${file}"
+    '';
+  }

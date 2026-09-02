@@ -1,8 +1,12 @@
-
-{ bash, elmPackages, writeScriptBin }:
-    writeScriptBin "format" ''
-      #! ${bash}/bin/bash
-      set -e
+{ elmPackages, writeShellApplication }:
+  writeShellApplication {
+    name = "format";
+    inheritPath = false;
+    runtimeInputs = [
+      elmPackages.elm-format
+    ];
+    text = ''
       cd elm
-      ${elmPackages.elm-format}/bin/elm-format --yes .
-    ''
+      elm-format --yes .
+    '';
+  }

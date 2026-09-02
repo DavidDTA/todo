@@ -888,7 +888,7 @@ squeeze priorities atlas =
                 )
                 (Atlas.waypointIdKeyDict .empty)
                 waypointIds
-                |> Atlas.waypointIdKeyDict .filter (\candidate {} -> Atlas.waypointIdKeyDict .member candidate waypointIds)
+                |> Atlas.waypointIdKeyDict .filter (\candidate {} -> not (Atlas.waypointIdKeyDict .member candidate waypointIds))
 
         initialQueue =
             Atlas.waypointGroups atlas

@@ -4,6 +4,7 @@ import Api
 import Atlas
 import Browser
 import Browser.Navigation
+import Build
 import Css
 import Dict
 import Endpoint
@@ -18,6 +19,7 @@ import KeyDict
 import List.Extra
 import Maybe.Extra
 import NetworkQueue
+import Result.Extra
 import SortKey
 import Strings
 import Task
@@ -30,7 +32,7 @@ type RemoteData
     = Loading
         { waypoints : Maybe (KeyDict.KeyDict WaypointId.WaypointId String Api.Waypoint)
         }
-    | Error
+    | Error OopsReason
     | Data
         { priorities : List { priority : String, waypointId : WaypointId.WaypointId }
         , waypoints : KeyDict.KeyDict WaypointId.WaypointId String Api.Waypoint
@@ -114,6 +116,7 @@ type NetworkResponse
 type OopsReason
     = UnknownPath
     | DataError
+    | OutdatedApplication
 
 
 main =
@@ -127,15 +130,29 @@ main =
         }
 
 
-init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init : Json.Decode.Value -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init flags url key =
-    ( { data = Loading { waypoints = Nothing }
+    let
+        versionMatch =
+            Json.Decode.decodeValue (Json.Decode.field "buildVersion" Json.Decode.string) flags
+                |> Result.Extra.unwrap False ((==) Build.version)
+    in
+    ( { data =
+            if versionMatch then
+                Loading { waypoints = Nothing }
+
+            else
+                Error OutdatedApplication
       , input = ""
       , screen = parseScreen url.path
       , navigationKey = key
       , networkQueue = NetworkQueue.empty
       }
-    , Task.perform identity (Task.succeed DelayedInit)
+    , if versionMatch then
+        Task.perform identity (Task.succeed DelayedInit)
+
+      else
+        Cmd.none
     )
 
 
@@ -160,12 +177,23 @@ update msg model =
 
         NetworkResponse { token, result } ->
             case result of
-                Err _ ->
+                Err error ->
                     let
                         { queue, cmd } =
                             NetworkQueue.halt requestToCmd token () model.networkQueue
                     in
-                    ( { model | networkQueue = queue }, cmd )
+                    ( { model
+                        | networkQueue = queue
+                        , data =
+                            case error of
+                                Http.BadStatus 418 ->
+                                    Error OutdatedApplication
+
+                                _ ->
+                                    Error DataError
+                      }
+                    , cmd
+                    )
 
                 Ok response ->
                     let
@@ -211,7 +239,7 @@ update msg model =
                                 Loading _ ->
                                     Nothing
 
-                                Error ->
+                                Error _ ->
                                     Nothing
 
                                 Data { waypoints } ->
@@ -277,7 +305,7 @@ updateForNetworkResponse response model =
                                         model.data
 
                                 else
-                                    Error
+                                    Error DataError
                            )
               }
             , Cmd.none
@@ -402,7 +430,7 @@ initData updateLoading data =
                 |> resolveData
 
         _ ->
-            Error
+            Error DataError
 
 
 resolveData loading =
@@ -419,9 +447,9 @@ resolveData loading =
 updateData fn remoteData =
     case remoteData of
         Loading _ ->
-            Error
+            Error DataError
 
-        Error ->
+        Error _ ->
             remoteData
 
         Data data ->
@@ -493,8 +521,8 @@ view model =
                     ( Nothing, _ ) ->
                         viewOops UnknownPath
 
-                    ( _, Error ) ->
-                        viewOops DataError
+                    ( _, Error reason ) ->
+                        viewOops reason
 
                     ( _, Loading _ ) ->
                         Ui.empty
@@ -517,6 +545,9 @@ viewOops reason =
 
                 DataError ->
                     Ui.text consts.strings.dataError
+
+                OutdatedApplication ->
+                    Ui.text consts.strings.outdatedApplication
             )
 
 
@@ -1048,6 +1079,7 @@ consts =
         , dependenciesIncomingIndirect = "Incoming Indirect Dependencies"
         , dependenciesOutgoingDirect = "Outgoing Direct Dependencies"
         , dependenciesOutgoingIndirect = "Outgoing Indirect Dependencies"
+        , outdatedApplication = "Application is outdated. Please refresh."
         , requires = "Requirements"
         , requiredByDirect = "Required By"
         , requiredByIndirect = "Required By"

@@ -5,6 +5,7 @@ import Atlas
 import Backend.Id
 import Backend.Interop
 import Backend.Storage
+import Build
 import ConcurrentTask
 import ConcurrentTask.Random
 import Endpoint
@@ -196,6 +197,18 @@ handlers =
         |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
         |> Endpoint.addHandler Api.waypointAddDependency waypointAddDependency
         |> Endpoint.addHandler Api.waypointRemoveDependency waypointRemoveDependency
+        |> Endpoint.mapHandlers
+            (\handler request ->
+                Backend.Interop.getHeader request "X-Build-Version"
+                    |> ConcurrentTask.andThen
+                        (\maybeBuildVersiom ->
+                            if maybeBuildVersiom == Just Build.version then
+                                handler request
+
+                            else
+                                Api.teapot
+                        )
+            )
         |> Endpoint.addHandler Api.export
             (ConcurrentTask.map
                 (\waypoints_ ->

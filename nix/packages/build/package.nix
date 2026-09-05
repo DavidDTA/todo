@@ -11,6 +11,8 @@
       outdir="''${1}"
       environment="''${2}"
 
+      build_version="''$(date '+%Y%m%d-%H%M%S')-''$(mktemp --dry-run XXXXXXXX)"
+
       case "''${environment}" in
         "prod")
           devtools=""
@@ -40,7 +42,7 @@
       <script>
       (function(){
       document.addEventListener("DOMContentLoaded", (event) => {
-      var elm = Elm.Frontend.''${entry}.init({ node: document.body });
+      var elm = Elm.Frontend.''${entry}.init({ node: document.body, flags: { buildVersion: "''${build_version}" }});
       elm.ports.callMethod.subscribe(function(event) {
         event.object[event.methodName](...event.args);
       });
@@ -57,6 +59,12 @@
       mkdir -p "''${outdir}"
       cp -r backend "''${outdir}/server"
       mkdir -p "''${outdir}/server/files"
+      mkdir -p build/generated/elm
+      cat >build/generated/elm/Build.elm <<EOF
+      module Build exposing (version)
+
+      version = "''${build_version}"
+      EOF
       (cd elm && lamdera make src/Frontend/Login.elm src/Frontend/Main.elm "''${elm_flags[@]}" --output="''${outdir}/server/files/app.js")
       write-index Login "''${devtools}" > "''${outdir}/server/files/index-unauthenticated.html"
       write-index Main "''${devtools}" > "''${outdir}/server/files/index-authenticated.html"

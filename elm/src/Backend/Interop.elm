@@ -16,6 +16,7 @@ port module Backend.Interop exposing
     , getCookie
     , getEnvironment
     , getFileResponse
+    , getHeader
     , getLegacyResponse
     , getMethod
     , getRandom
@@ -352,6 +353,16 @@ getUrl (Request request) =
         { function = "req:getUrl"
         , expect = ConcurrentTask.expectJson Json.Decode.string
         , args = request
+        }
+
+
+getHeader (Request request) name =
+    defineTask
+        { function = "req:getHeader"
+        , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
+        , args =
+            Json.Encode.object
+                [ ( "request", request ), ( "name", Json.Encode.string name ) ]
         }
 
 

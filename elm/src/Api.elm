@@ -9,6 +9,7 @@ module Api exposing
     , home
     , internalServerError
     , login
+    , teapot
     , unwrapWaypointId
     , waypointAdd
     , waypointAddDependency
@@ -22,6 +23,7 @@ module Api exposing
 
 import Atlas
 import Backend.Interop
+import Build
 import Bytes
 import Bytes.Decode
 import Bytes.Encode
@@ -410,7 +412,7 @@ endpoint { encodeRequest, decodeRequest, applyRequest } { expectResponse, handle
             (\method pathSegments body tag ->
                 Http.request
                     { method = method
-                    , headers = []
+                    , headers = [ Http.header "X-Build-Version" Build.version ]
                     , url = "/" ++ String.join "/" (List.map Url.percentEncode pathSegments)
                     , body = body
                     , expect = expectResponse tag
@@ -442,6 +444,10 @@ badRequest =
 
 forbidden =
     Backend.Interop.getResponse { status = 403, body = emptyBody }
+
+
+teapot =
+    Backend.Interop.getResponse { status = 418, body = emptyBody }
 
 
 internalServerError =

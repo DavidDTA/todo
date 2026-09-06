@@ -43,14 +43,13 @@ type alias Model =
     , input : String
     , navigationKey : Browser.Navigation.Key
     , networkQueue : NetworkQueue.NetworkQueue NetworkRequest ()
-    , screen : Screen
+    , screen : Maybe Screen
     }
 
 
 type Screen
     = Home
     | WaypointDetail WaypointId.WaypointId
-    | Oops OopsReason
 
 
 type Msg
@@ -143,13 +142,13 @@ init flags url key =
 parseScreen url =
     case Endpoint.splitPath url of
         Just [ "" ] ->
-            Home
+            Just Home
 
         Just [ "detail", id ] ->
-            WaypointDetail (WaypointId.WaypointId id)
+            Just (WaypointDetail (WaypointId.WaypointId id))
 
         _ ->
-            Oops UnknownPath
+            Nothing
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -484,22 +483,20 @@ view model =
         Ui.global
             |> Ui.append (Ui.loader (NetworkQueue.fold (always ((||) True)) False model.networkQueue))
             |> Ui.append
-                (case model.data of
-                    Data data ->
-                        case model.screen of
-                            Home ->
-                                viewHome model data
+                (case ( model.screen, model.data ) of
+                    ( Just Home, Data data ) ->
+                        viewHome model data
 
-                            WaypointDetail waypointId ->
-                                viewDetail data waypointId
+                    ( Just (WaypointDetail waypointId), Data data ) ->
+                        viewDetail data waypointId
 
-                            Oops reason ->
-                                viewOops reason
+                    ( Nothing, _ ) ->
+                        viewOops UnknownPath
 
-                    Error ->
+                    ( _, Error ) ->
                         viewOops DataError
 
-                    Loading _ ->
+                    ( _, Loading _ ) ->
                         Ui.empty
                 )
             |> Ui.toHtml
@@ -512,7 +509,7 @@ viewOops reason =
         |> Ui.append
             (case reason of
                 UnknownPath ->
-                    consts.strings.unknownPath
+                    consts.strings.unexpectedLocation
                         { normal = Ui.text
                         , link = Just >> Ui.link "/"
                         }
@@ -1055,7 +1052,7 @@ consts =
         , requiredByDirect = "Required By"
         , requiredByIndirect = "Required By"
         , skippedItems = \n -> "<" ++ String.fromInt n ++ " more>"
-        , unknownPath =
+        , unexpectedLocation =
             \{ normal, link } ->
                 [ normal "You wound up somewhere unexpected. "
                 , link "Click here"

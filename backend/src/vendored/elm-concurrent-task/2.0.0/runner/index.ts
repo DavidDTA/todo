@@ -1,16 +1,7 @@
-import { HttpRequest, HttpResponse } from "./http/index.js";
-import * as fetchAdapter from "./http/fetch.js";
-import {
-  DomError,
-  DomElement,
-  Viewport,
-  SetViewportOptions,
-  SetViewportOfOptions,
-} from "./browser/index.js";
-import * as dom from "./browser/dom.js";
+import { HttpRequest, HttpResponse } from "./http/index.ts";
+import * as fetchAdapter from "./http/fetch.ts";
 
-export * from "./http/index.js";
-export * from "./browser/index.js";
+export * from "./http/index.ts";
 
 export interface ElmPorts {
   send: { subscribe: (callback: (defs: TaskDefinition[]) => Promise<void>) => void; };
@@ -54,13 +45,6 @@ export interface Builtins {
   timeZoneName?: () => string | number;
   randomSeed?: () => number;
   sleep?: (ms: number) => Promise<void>;
-  domFocus?: (id: string) => void | DomError;
-  domBlur?: (id: string) => void | DomError;
-  domGetViewport?: () => Viewport;
-  domGetViewportOf?: (id: string) => Viewport | DomError;
-  domSetViewport?: (args: SetViewportOptions) => void;
-  domSetViewportOf?: (args: SetViewportOfOptions) => void | DomError;
-  domGetElement?: (id: string) => DomElement | DomError;
 }
 
 const BuiltInTasks: Builtins = {
@@ -71,13 +55,6 @@ const BuiltInTasks: Builtins = {
   timeZoneName: () => getTimeZoneName(),
   randomSeed: () => Date.now(),
   sleep: sleep,
-  domFocus: dom.focus,
-  domBlur: dom.blur,
-  domGetViewport: dom.getViewport,
-  domGetViewportOf: dom.getViewportOf,
-  domSetViewport: dom.setViewport,
-  domSetViewportOf: dom.setViewportOf,
-  domGetElement: dom.getElement,
 };
 
 // Equivalent Elm Kernel code: https://github.com/elm/core/blob/master/src/Elm/Kernel/Process.js#L9-L18
@@ -150,14 +127,15 @@ export function register(options: Options): void {
           result: { value: result },
         });
       } catch (e) {
+        let error = e instanceof Error ? e : new Error("Thrown non-Error", { cause: e });
         debouncedSend({
           attemptId: def.attemptId,
           taskId: def.taskId,
           result: {
             error: {
               reason: "js_exception",
-              message: `${e.name}: ${e.message}`,
-              raw: e,
+              message: `${error.name}: ${error.message}`,
+              raw: error,
             },
           },
         });

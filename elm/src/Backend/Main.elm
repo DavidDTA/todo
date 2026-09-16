@@ -18,7 +18,7 @@ import WaypointId
 
 
 type alias Model =
-    { taskPool : ConcurrentTask.Pool Msg Never ()
+    { taskPool : ConcurrentTask.Pool Msg
     }
 
 
@@ -28,7 +28,7 @@ type Msg
         , resolver : Backend.Interop.Resolver
         }
     | TaskProgress
-        ( ConcurrentTask.Pool Msg Never ()
+        ( ConcurrentTask.Pool Msg
         , Cmd Msg
         )
     | TaskCompleted (ConcurrentTask.Response Never ())

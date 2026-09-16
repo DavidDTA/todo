@@ -35,6 +35,7 @@
                   nixpkgs'.quickfix
                   nixpkgs'.deno
                   nixpkgs'.elmPackages.lamdera
+                  nixpkgs'.elmPackages.elm-json
                 ];
               };
             }

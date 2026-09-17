@@ -143,24 +143,22 @@ logError errors_ =
 
 
 atomicOpCheck (AtomicOperation op) { key, versionstamp } =
-    defineTask
-        { function = "atomicOp:check"
-        , expect = ConcurrentTask.expectWhatever
-        , args =
-            Json.Encode.object
-                [ ( "atomicOp", op )
-                , ( "key", encodeKvKey key )
-                , ( "versionstamp"
-                  , Maybe.Extra.unwrap Json.Encode.null
-                        (\it ->
-                            case it of
-                                Versionstamp rawVersionstamp ->
-                                    Json.Encode.string rawVersionstamp
-                        )
-                        versionstamp
-                  )
-                ]
-        }
+    callMethod op
+        "check"
+        [ Json.Encode.object
+            [ ( "key", encodeKvKey key )
+            , ( "versionstamp"
+              , Maybe.Extra.unwrap Json.Encode.null
+                    (\it ->
+                        case it of
+                            Versionstamp rawVersionstamp ->
+                                Json.Encode.string rawVersionstamp
+                    )
+                    versionstamp
+              )
+            ]
+        ]
+        (Json.Decode.succeed {})
 
 
 atomicOpCommit (AtomicOperation op) =
@@ -471,3 +469,11 @@ defineTask { function, expect, args } =
         , errors = ConcurrentTask.expectNoErrors
         , args = args
         }
+
+
+callMethod thisArg name argsArray decoder =
+    Ffi.getProperty thisArg (Json.Encode.string name) Json.Decode.value
+        |> ConcurrentTask.andThen
+            (\function ->
+                Ffi.applyFunction function thisArg argsArray decoder
+            )

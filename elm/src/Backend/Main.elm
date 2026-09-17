@@ -31,7 +31,7 @@ type Msg
         ( ConcurrentTask.Pool Msg
         , Cmd Msg
         )
-    | TaskCompleted (ConcurrentTask.Response Never ())
+    | TaskCompleted (ConcurrentTask.Response Never {})
 
 
 type Authentication
@@ -68,7 +68,7 @@ update msg model =
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
             ( model, Backend.Interop.sendError (formatUnexpectedError error) )
 
-        TaskCompleted (ConcurrentTask.Success ()) ->
+        TaskCompleted (ConcurrentTask.Success {}) ->
             ( model, Cmd.none )
 
         NewRequest { request, resolver } ->

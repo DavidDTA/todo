@@ -379,15 +379,10 @@ getBody (Request request) =
 
 
 resolveRequest (Resolver resolver) (Response response) =
-    defineTask
-        { function = "req:resolve"
-        , expect = ConcurrentTask.expectWhatever
-        , args =
-            Json.Encode.object
-                [ ( "resolver", resolver )
-                , ( "response", response )
-                ]
-        }
+    Ffi.applyFunction resolver
+        Json.Encode.null
+        [ response ]
+        (Json.Decode.succeed {})
 
 
 getResponse { status, body } =

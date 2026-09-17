@@ -65,6 +65,7 @@ const app = Elm.Backend.Main.init();
 ConcurrentTask.register({
   tasks: {
     "property:get": ({ object, name }: { object: any, name: any }) => object[name],
+    "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
     "atomicOp:check": ({ atomicOp, key, versionstamp }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, versionstamp : string | null }) => atomicOp.check({ key, versionstamp }),
     "atomicOp:commit": (atomicOp: Deno.AtomicOperation) => atomicOp.commit(),
     "atomicOp:delete": ({ atomicOp, key }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey }) => atomicOp.delete(key),
@@ -81,7 +82,6 @@ ConcurrentTask.register({
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
     "req:getHeader": ({ request, name }: { request: Request, name: string }) => request.headers.get(name),
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
-    "req:resolve": ({ resolver, response }: { resolver: (_: Response) => void, response: Response}) => resolver(response),
     "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
     "resp:get": ({ status, body }: { status: number, body: Array<number> }) => new Response(Uint8Array.from(body), { status }),
     "resp:legacy": handle,

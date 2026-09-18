@@ -38,6 +38,7 @@ import Bytes
 import Bytes.Decode
 import Bytes.Encode
 import ConcurrentTask
+import Ffi
 import Json.Decode
 import Json.Encode
 import Maybe.Extra
@@ -341,11 +342,7 @@ getRandom bytes =
 
 
 getMethod (Request request) =
-    defineTask
-        { function = "req:getMethod"
-        , expect = ConcurrentTask.expectJson Json.Decode.string
-        , args = request
-        }
+    Ffi.getProperty request (Json.Encode.string "method") Json.Decode.string
 
 
 getUrl (Request request) =

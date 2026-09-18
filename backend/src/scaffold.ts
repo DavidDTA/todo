@@ -64,6 +64,7 @@ const app = Elm.Backend.Main.init();
 
 ConcurrentTask.register({
   tasks: {
+    "property:get": ({ object, name }: { object: any, name: any }) => object[name],
     "atomicOp:check": ({ atomicOp, key, versionstamp }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, versionstamp : string | null }) => atomicOp.check({ key, versionstamp }),
     "atomicOp:commit": (atomicOp: Deno.AtomicOperation) => atomicOp.commit(),
     "atomicOp:delete": ({ atomicOp, key }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey }) => atomicOp.delete(key),
@@ -78,7 +79,6 @@ ConcurrentTask.register({
     "log:error": logError,
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
-    "req:getMethod": (request: Request) => request.method,
     "req:getUrl": (request: Request) => request.url,
     "req:getHeader": ({ request, name }: { request: Request, name: string }) => request.headers.get(name),
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,

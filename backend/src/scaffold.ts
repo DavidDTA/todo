@@ -79,7 +79,6 @@ ConcurrentTask.register({
     "log:error": logError,
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
-    "req:getUrl": (request: Request) => request.url,
     "req:getHeader": ({ request, name }: { request: Request, name: string }) => request.headers.get(name),
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
     "req:resolve": ({ resolver, response }: { resolver: (_: Response) => void, response: Response}) => resolver(response),

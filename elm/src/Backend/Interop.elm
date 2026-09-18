@@ -346,11 +346,7 @@ getMethod (Request request) =
 
 
 getUrl (Request request) =
-    defineTask
-        { function = "req:getUrl"
-        , expect = ConcurrentTask.expectJson Json.Decode.string
-        , args = request
-        }
+    Ffi.getProperty request (Json.Encode.string "url") Json.Decode.string
 
 
 getHeader (Request request) name =

@@ -191,11 +191,7 @@ atomicOpSet (AtomicOperation op) { key, value } =
 
 
 closeKv (Kv kv) =
-    defineTask
-        { function = "kv:close"
-        , expect = ConcurrentTask.expectWhatever
-        , args = kv
-        }
+    callMethod kv "close" [] (Json.Decode.succeed {})
 
 
 kvAtomic (Kv kv) =

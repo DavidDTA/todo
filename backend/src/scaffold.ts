@@ -68,7 +68,6 @@ ConcurrentTask.register({
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
     "kv:open": () => Deno.openKv(),
-    "kv:close": (kv: Deno.Kv) => kv.close(),
     "log:error": logError,
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),

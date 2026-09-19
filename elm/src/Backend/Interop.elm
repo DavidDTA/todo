@@ -311,13 +311,14 @@ getUrl (Request request) =
 
 
 getHeader (Request request) name =
-    defineTask
-        { function = "req:getHeader"
-        , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
-        , args =
-            Json.Encode.object
-                [ ( "request", request ), ( "name", Json.Encode.string name ) ]
-        }
+    getProperty request "headers" Json.Decode.value
+        |> ConcurrentTask.andThen
+            (\headers ->
+                callMethod headers
+                    "get"
+                    [ Json.Encode.string name ]
+                    (Json.Decode.nullable Json.Decode.string)
+            )
 
 
 getCookie key (Request request) =

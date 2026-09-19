@@ -220,33 +220,25 @@ kvGet (Kv kv) key =
 
 
 kvList (Kv kv) prefix decoder =
-    defineTask
-        { function = "kv:list"
-        , expect =
-            ConcurrentTask.expectJson
-                (Json.Decode.value
-                    |> Json.Decode.map
-                        (\iterator ->
-                            Iterator
-                                { iterator = iterator
-                                , decoder =
-                                    Json.Decode.map3
-                                        (\key value versionstamp -> { key = key, value = value, versionstamp = versionstamp })
-                                        (Json.Decode.field "key" decodeKvKey)
-                                        (Json.Decode.field "value" Json.Decode.value)
-                                        (Json.Decode.map Versionstamp (Json.Decode.field "versionstamp" Json.Decode.string))
-                                }
-                        )
+    callMethod kv
+        "list"
+        [ Json.Encode.object
+            [ ( "prefix", encodeKvKey prefix ) ]
+        ]
+        (Json.Decode.value
+            |> Json.Decode.map
+                (\iterator ->
+                    Iterator
+                        { iterator = iterator
+                        , decoder =
+                            Json.Decode.map3
+                                (\key value versionstamp -> { key = key, value = value, versionstamp = versionstamp })
+                                (Json.Decode.field "key" decodeKvKey)
+                                (Json.Decode.field "value" Json.Decode.value)
+                                (Json.Decode.map Versionstamp (Json.Decode.field "versionstamp" Json.Decode.string))
+                        }
                 )
-        , args =
-            Json.Encode.object
-                [ ( "kv", kv )
-                , ( "selector"
-                  , Json.Encode.object
-                        [ ( "prefix", encodeKvKey prefix ) ]
-                  )
-                ]
-        }
+        )
 
 
 openKv =

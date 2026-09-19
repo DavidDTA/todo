@@ -67,7 +67,6 @@ ConcurrentTask.register({
     "property:get": ({ object, name }: { object: any, name: any }) => object[name],
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
-    "kv:list": ({ kv, selector }: { kv: Deno.Kv, selector: Deno.KvListSelector }) => kv.list(selector),
     "kv:open": () => Deno.openKv(),
     "kv:close": (kv: Deno.Kv) => kv.close(),
     "log:error": logError,

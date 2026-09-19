@@ -303,11 +303,11 @@ getRandom bytes =
 
 
 getMethod (Request request) =
-    Ffi.getProperty request (Json.Encode.string "method") Json.Decode.string
+    getProperty request "method" Json.Decode.string
 
 
 getUrl (Request request) =
-    Ffi.getProperty request (Json.Encode.string "url") Json.Decode.string
+    getProperty request "url" Json.Decode.string
 
 
 getHeader (Request request) name =
@@ -434,8 +434,12 @@ defineTask { function, expect, args } =
         }
 
 
+getProperty request name decoder =
+    Ffi.getProperty request (Json.Encode.string name) decoder
+
+
 callMethod thisArg name argsArray decoder =
-    Ffi.getProperty thisArg (Json.Encode.string name) Json.Decode.value
+    getProperty thisArg name Json.Decode.value
         |> ConcurrentTask.andThen
             (\function ->
                 Ffi.applyFunction function thisArg argsArray decoder

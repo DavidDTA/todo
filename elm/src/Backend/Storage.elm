@@ -58,7 +58,7 @@ waypointAdd op id { text } =
         |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = encodeWaypoint { text = text, completed = False, priority = Nothing, dependencies = [] } })
 
 
-waypointDelete : Backend.Interop.AtomicOperation -> WaypointId.WaypointId -> ConcurrentTask.ConcurrentTask x ()
+waypointDelete : Backend.Interop.AtomicOperation -> WaypointId.WaypointId -> ConcurrentTask.ConcurrentTask x {}
 waypointDelete op id =
     Backend.Interop.atomicOpDelete op { key = keys.waypoint id }
 

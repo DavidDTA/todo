@@ -178,15 +178,7 @@ atomicOpCommit (AtomicOperation op) =
 
 
 atomicOpDelete (AtomicOperation op) { key } =
-    defineTask
-        { function = "atomicOp:delete"
-        , expect = ConcurrentTask.expectWhatever
-        , args =
-            Json.Encode.object
-                [ ( "atomicOp", op )
-                , ( "key", encodeKvKey key )
-                ]
-        }
+    callMethod op "delete" [ encodeKvKey key ] (Json.Decode.succeed {})
 
 
 atomicOpSet (AtomicOperation op) { key, value } =

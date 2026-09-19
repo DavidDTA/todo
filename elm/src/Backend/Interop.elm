@@ -206,24 +206,17 @@ kvAtomic (Kv kv) =
 
 
 kvGet (Kv kv) key =
-    defineTask
-        { function = "kv:get"
-        , expect =
-            ConcurrentTask.expectJson
-                (Json.Decode.oneOf
-                    [ Json.Decode.field "versionstamp" (Json.Decode.null Nothing)
-                    , Json.Decode.map2 (\versionstamp value -> { versionstamp = Versionstamp versionstamp, value = value })
-                        (Json.Decode.field "versionstamp" Json.Decode.string)
-                        (Json.Decode.field "value" Json.Decode.value)
-                        |> Json.Decode.map Just
-                    ]
-                )
-        , args =
-            Json.Encode.object
-                [ ( "kv", kv )
-                , ( "key", encodeKvKey key )
-                ]
-        }
+    callMethod kv
+        "get"
+        [ encodeKvKey key ]
+        (Json.Decode.oneOf
+            [ Json.Decode.field "versionstamp" (Json.Decode.null Nothing)
+            , Json.Decode.map2 (\versionstamp value -> { versionstamp = Versionstamp versionstamp, value = value })
+                (Json.Decode.field "versionstamp" Json.Decode.string)
+                (Json.Decode.field "value" Json.Decode.value)
+                |> Json.Decode.map Just
+            ]
+        )
 
 
 kvList (Kv kv) prefix decoder =

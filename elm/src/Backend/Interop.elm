@@ -284,23 +284,20 @@ withKv task =
 
 
 iteratorNext (Iterator { iterator, decoder }) =
-    defineTask
-        { function = "iterator:next"
-        , expect =
-            ConcurrentTask.expectJson
-                (Json.Decode.field "done" Json.Decode.bool
-                    |> Json.Decode.andThen
-                        (\done ->
-                            if done then
-                                Json.Decode.succeed Nothing
+    callMethod iterator
+        "next"
+        []
+        (Json.Decode.field "done" Json.Decode.bool
+            |> Json.Decode.andThen
+                (\done ->
+                    if done then
+                        Json.Decode.succeed Nothing
 
-                            else
-                                Json.Decode.field "value" decoder
-                                    |> Json.Decode.map Just
-                        )
+                    else
+                        Json.Decode.field "value" decoder
+                            |> Json.Decode.map Just
                 )
-        , args = iterator
-        }
+        )
 
 
 iteratorToList iterator =

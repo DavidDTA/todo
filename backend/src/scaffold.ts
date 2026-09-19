@@ -67,7 +67,6 @@ ConcurrentTask.register({
     "property:get": ({ object, name }: { object: any, name: any }) => object[name],
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
-    "iterator:next": (iterator: AsyncIterator<any>) => iterator.next(),
     "kv:atomic": (kv: Deno.Kv) => kv.atomic(),
     "kv:get": ({ kv, key }: { kv: Deno.Kv, key: Deno.KvKey }) => kv.get(key),
     "kv:list": ({ kv, selector }: { kv: Deno.Kv, selector: Deno.KvListSelector }) => kv.list(selector),

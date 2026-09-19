@@ -199,11 +199,10 @@ closeKv (Kv kv) =
 
 
 kvAtomic (Kv kv) =
-    defineTask
-        { function = "kv:atomic"
-        , expect = ConcurrentTask.expectJson (Json.Decode.map AtomicOperation Json.Decode.value)
-        , args = kv
-        }
+    callMethod kv
+        "atomic"
+        []
+        (Json.Decode.map AtomicOperation Json.Decode.value)
 
 
 kvGet (Kv kv) key =

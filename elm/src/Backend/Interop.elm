@@ -162,21 +162,19 @@ atomicOpCheck (AtomicOperation op) { key, versionstamp } =
 
 
 atomicOpCommit (AtomicOperation op) =
-    defineTask
-        { function = "atomicOp:commit"
-        , expect =
-            Json.Decode.field "ok" Json.Decode.bool
-                |> Json.Decode.andThen
-                    (\ok ->
-                        if ok then
-                            Json.Decode.map (Versionstamp >> Ok) (Json.Decode.field "versionstamp" Json.Decode.string)
+    callMethod op
+        "commit"
+        []
+        (Json.Decode.field "ok" Json.Decode.bool
+            |> Json.Decode.andThen
+                (\ok ->
+                    if ok then
+                        Json.Decode.map (Versionstamp >> Ok) (Json.Decode.field "versionstamp" Json.Decode.string)
 
-                        else
-                            Json.Decode.succeed (Err ())
-                    )
-                |> ConcurrentTask.expectJson
-        , args = op
-        }
+                    else
+                        Json.Decode.succeed (Err ())
+                )
+        )
 
 
 atomicOpDelete (AtomicOperation op) { key } =

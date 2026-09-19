@@ -66,7 +66,6 @@ ConcurrentTask.register({
   tasks: {
     "property:get": ({ object, name }: { object: any, name: any }) => object[name],
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
-    "atomicOp:set": ({ atomicOp, key, value }: { atomicOp: Deno.AtomicOperation, key: Deno.KvKey, value: any }) => atomicOp.set(key, value),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
     "iterator:next": (iterator: AsyncIterator<any>) => iterator.next(),
     "kv:atomic": (kv: Deno.Kv) => kv.atomic(),

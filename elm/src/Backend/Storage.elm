@@ -52,7 +52,7 @@ type WaypointRemoveDependencyError
     | WaypointRemoveDependencyDecodeError Backend.Interop.Log
 
 
-waypointAdd : Backend.Interop.AtomicOperation -> WaypointId.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x ()
+waypointAdd : Backend.Interop.AtomicOperation -> WaypointId.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x {}
 waypointAdd op id { text } =
     Backend.Interop.atomicOpCheck op { key = keys.waypoint id, versionstamp = Nothing }
         |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpSet op { key = keys.waypoint id, value = encodeWaypoint { text = text, completed = False, priority = Nothing, dependencies = [] } })

@@ -89,6 +89,7 @@ update msg model =
                                             Endpoint.getHandler method
                                                 pathSegments
                                                 handlers
+                                                model
                                                 request
                         )
                         (Backend.Interop.getMethod request)
@@ -150,7 +151,7 @@ formatUnexpectedError unexpectedError =
 
 
 handlers =
-    Endpoint.handlers (\request -> Backend.Interop.getLegacyResponse request)
+    Endpoint.handlers (\state request -> Backend.Interop.getLegacyResponse request)
         |> Endpoint.addHandler Api.waypoints getWaypoints
         |> Endpoint.addHandler Api.waypointAdd
             (\{ text } ->
@@ -198,12 +199,12 @@ handlers =
         |> Endpoint.addHandler Api.waypointAddDependency waypointAddDependency
         |> Endpoint.addHandler Api.waypointRemoveDependency waypointRemoveDependency
         |> Endpoint.mapHandlers
-            (\handler request ->
+            (\handler state request ->
                 Backend.Interop.getHeader request "X-Build-Version"
                     |> ConcurrentTask.andThen
                         (\maybeBuildVersiom ->
                             if maybeBuildVersiom == Just Build.version then
-                                handler request
+                                handler state request
 
                             else
                                 Api.teapot
@@ -218,7 +219,7 @@ handlers =
                 getWaypoints
             )
         |> Endpoint.mapHandlers
-            (\handler request ->
+            (\handler state request ->
                 getAuthentication request
                     |> ConcurrentTask.andThen
                         (\maybeAuth ->
@@ -227,7 +228,7 @@ handlers =
                                     Api.forbidden
 
                                 Just auth ->
-                                    handler request
+                                    handler state request
                         )
             )
         |> Endpoint.addHandler Api.home frontend

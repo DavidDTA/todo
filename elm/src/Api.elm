@@ -199,7 +199,7 @@ type alias WaypointRemoveDependencyRequest =
 
 
 withRequest =
-    Endpoint.mapResponse (\handler impl request -> handler (impl request) request)
+    Endpoint.mapResponse (\handler impl state request -> handler (impl request) state request)
 
 
 emptyRequest :
@@ -356,7 +356,7 @@ get :
     ->
         Endpoint.Endpoint
             ((Result Http.Error response -> msg) -> Cmd msg)
-            (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response)
+            (impl2 -> state -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response)
 get path response =
     Endpoint.endpoint "GET" path (endpoint emptyRequest response)
 
@@ -380,7 +380,7 @@ post :
     ->
         Endpoint.Endpoint
             req
-            (impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response)
+            (impl2 -> state -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response)
 post path request response =
     Endpoint.endpoint "POST" path (endpoint request response)
 
@@ -404,7 +404,7 @@ endpoint :
         }
     ->
         { request : req
-        , response : impl2 -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
+        , response : impl2 -> state -> Backend.Interop.Request -> ConcurrentTask.ConcurrentTask x Backend.Interop.Response
         }
 endpoint { encodeRequest, decodeRequest, applyRequest } { expectResponse, handleResult } =
     { request =
@@ -421,7 +421,7 @@ endpoint { encodeRequest, decodeRequest, applyRequest } { expectResponse, handle
                     }
             )
     , response =
-        \task request ->
+        \task state request ->
             decodeRequest request
                 |> ConcurrentTask.map Ok
                 |> ConcurrentTask.mapError Err

@@ -9,7 +9,7 @@ type resolver = (_: Response | Promise<Response>) => void
 export const Elm: {
   Backend: {
     Main: {
-      init: () => {
+      init: (_: { flags: { globalThis: any } }) => {
         ports: {
           requests: portToElm<{ request: Request, resolver: resolver }>,
           taskRequests: portFromElm<any>,

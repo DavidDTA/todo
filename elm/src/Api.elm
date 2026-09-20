@@ -99,6 +99,7 @@ export =
                     ]
             )
         )
+        |> withState
 
 
 appjs =
@@ -122,6 +123,7 @@ waypoints =
     get
         (apiBase ++ [ Endpoint.fixed "waypoints" ])
         (bytesResponse w3_decode_Waypoints w3_encode_Waypoints)
+        |> withState
 
 
 waypointAdd =
@@ -129,6 +131,7 @@ waypointAdd =
         (apiBase ++ [ Endpoint.fixed "add-waypoint" ])
         (bytesRequest w3_decode_WaypointAddRequest w3_encode_WaypointAddRequest)
         (bytesResponse w3_decode_WaypointAddResponse w3_encode_WaypointAddResponse)
+        |> withState
 
 
 waypointAddDependency =
@@ -136,6 +139,7 @@ waypointAddDependency =
         (apiBase ++ [ Endpoint.fixed "add-dependency" ])
         (bytesRequest w3_decode_WaypointAddDependencyRequest w3_encode_WaypointAddDependencyRequest)
         emptyResponse
+        |> withState
 
 
 waypointDelete =
@@ -143,6 +147,7 @@ waypointDelete =
         (apiBase ++ [ Endpoint.fixed "delete-waypoint" ])
         (bytesRequest w3_decode_WaypointDeleteRequest w3_encode_WaypointDeleteRequest)
         emptyResponse
+        |> withState
 
 
 waypointSetCompleted =
@@ -150,6 +155,7 @@ waypointSetCompleted =
         (apiBase ++ [ Endpoint.fixed "waypoint-set-completed" ])
         (bytesRequest w3_decode_WaypointSetCompletedRequest w3_encode_WaypointSetCompletedRequest)
         emptyResponse
+        |> withState
 
 
 waypointSetPriority =
@@ -157,6 +163,7 @@ waypointSetPriority =
         (apiBase ++ [ Endpoint.fixed "waypoint-set-priority" ])
         (bytesRequest w3_decode_WaypointSetPriorityRequest w3_encode_WaypointSetPriorityRequest)
         emptyResponse
+        |> withState
 
 
 waypointRemoveDependency =
@@ -164,6 +171,7 @@ waypointRemoveDependency =
         (apiBase ++ [ Endpoint.fixed "remove-dependency" ])
         (bytesRequest w3_decode_WaypointRemoveDependencyRequest w3_encode_WaypointRemoveDependencyRequest)
         emptyResponse
+        |> withState
 
 
 type alias WaypointAddRequest =
@@ -200,6 +208,10 @@ type alias WaypointRemoveDependencyRequest =
 
 withRequest =
     Endpoint.mapResponse (\handler impl state request -> handler (impl request) state request)
+
+
+withState =
+    Endpoint.mapResponse (\handler impl state request -> handler (impl state) state request)
 
 
 emptyRequest :

@@ -1,5 +1,6 @@
 port module Backend.Interop exposing
     ( AtomicOperation
+    , GlobalThis
     , Kv
     , KvKeyPart(..)
     , Log
@@ -22,6 +23,7 @@ port module Backend.Interop exposing
     , getRandom
     , getResponse
     , getUrl
+    , globalThis
     , iteratorToList
     , kvAtomic
     , kvGet
@@ -62,6 +64,10 @@ port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 port errors : List Json.Encode.Value -> Cmd msg
 
 
+type GlobalThis
+    = GlobalThis Json.Encode.Value
+
+
 type alias Log =
     List Json.Decode.Value
 
@@ -97,6 +103,10 @@ type Resolver
 
 type Versionstamp
     = Versionstamp String
+
+
+globalThis =
+    GlobalThis
 
 
 receiveRequests tag =
@@ -237,16 +247,19 @@ kvList (Kv kv) prefix decoder =
         )
 
 
-openKv =
-    defineTask
-        { function = "kv:open"
-        , expect = ConcurrentTask.expectJson (Json.Decode.map Kv Json.Decode.value)
-        , args = Json.Encode.null
-        }
+openKv (GlobalThis globalThis_) =
+    getProperty globalThis_ "Deno" Json.Decode.value
+        |> ConcurrentTask.andThen
+            (\deno ->
+                callMethod deno
+                    "openKv"
+                    []
+                    (Json.Decode.map Kv Json.Decode.value)
+            )
 
 
-withKv task =
-    openKv
+withKv globalThis_ task =
+    openKv globalThis_
         |> ConcurrentTask.andThen
             (\kv ->
                 task kv

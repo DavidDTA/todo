@@ -19,6 +19,7 @@ import WaypointId
 
 type alias Model =
     { taskPool : ConcurrentTask.Pool Msg
+    , globalThis : Backend.Interop.GlobalThis
     }
 
 
@@ -45,15 +46,19 @@ type Error
 
 main =
     Platform.worker
-        { init =
-            \() ->
-                ( { taskPool = ConcurrentTask.pool
-                  }
-                , Cmd.none
-                )
+        { init = init
         , update = update
         , subscriptions = subscriptions
         }
+
+
+init : { globalThis : Json.Encode.Value } -> ( Model, Cmd Msg )
+init { globalThis } =
+    ( { taskPool = ConcurrentTask.pool
+      , globalThis = Backend.Interop.globalThis globalThis
+      }
+    , Cmd.none
+    )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -154,8 +159,8 @@ handlers =
     Endpoint.handlers (\state request -> Backend.Interop.getLegacyResponse request)
         |> Endpoint.addHandler Api.waypoints getWaypoints
         |> Endpoint.addHandler Api.waypointAdd
-            (\{ text } ->
-                Backend.Interop.withKv
+            (\{ globalThis } { text } ->
+                Backend.Interop.withKv globalThis
                     (\kv ->
                         transact kv
                             (\op ->
@@ -183,8 +188,8 @@ handlers =
                     )
             )
         |> Endpoint.addHandler Api.waypointDelete
-            (\{ id } ->
-                Backend.Interop.withKv
+            (\{ globalThis } { id } ->
+                Backend.Interop.withKv globalThis
                     (\kv ->
                         transact kv
                             (\op ->
@@ -211,12 +216,13 @@ handlers =
                         )
             )
         |> Endpoint.addHandler Api.export
-            (ConcurrentTask.map
-                (\waypoints_ ->
-                    { waypoints = waypoints_
-                    }
-                )
-                getWaypoints
+            (\model ->
+                ConcurrentTask.map
+                    (\waypoints_ ->
+                        { waypoints = waypoints_
+                        }
+                    )
+                    (getWaypoints model)
             )
         |> Endpoint.mapHandlers
             (\handler state request ->
@@ -243,8 +249,8 @@ handlers =
         |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
 
 
-getWaypoints =
-    Backend.Interop.withKv
+getWaypoints { globalThis } =
+    Backend.Interop.withKv globalThis
         (\kv ->
             Backend.Storage.waypointsList kv
         )
@@ -282,8 +288,8 @@ getWaypoints =
             )
 
 
-waypointSetCompleted { id, completed } =
-    Backend.Interop.withKv
+waypointSetCompleted { globalThis } { id, completed } =
+    Backend.Interop.withKv globalThis
         (\kv ->
             transact kv
                 (\op ->
@@ -303,8 +309,8 @@ waypointSetCompleted { id, completed } =
             )
 
 
-waypointSetPriority { id, priority } =
-    Backend.Interop.withKv
+waypointSetPriority { globalThis } { id, priority } =
+    Backend.Interop.withKv globalThis
         (\kv ->
             transact kv
                 (\op ->
@@ -324,8 +330,8 @@ waypointSetPriority { id, priority } =
             )
 
 
-waypointAddDependency { from, to } =
-    Backend.Interop.withKv
+waypointAddDependency { globalThis } { from, to } =
+    Backend.Interop.withKv globalThis
         (\kv ->
             transact kv
                 (\op ->
@@ -364,8 +370,8 @@ waypointAddDependency { from, to } =
             )
 
 
-waypointRemoveDependency { from, to } =
-    Backend.Interop.withKv
+waypointRemoveDependency { globalThis } { from, to } =
+    Backend.Interop.withKv globalThis
         (\kv ->
             transact kv
                 (\op ->

@@ -60,14 +60,13 @@ async function handle(req: Request) {
   return new Response(null, { status: 404 });
 }
 
-const app = Elm.Backend.Main.init();
+const app = Elm.Backend.Main.init({ flags: { globalThis } });
 
 ConcurrentTask.register({
   tasks: {
     "property:get": ({ object, name }: { object: any, name: any }) => object[name],
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
     "env:get": (key: string) => Deno.env.get(key) ?? null,
-    "kv:open": () => Deno.openKv(),
     "log:error": logError,
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),

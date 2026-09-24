@@ -226,7 +226,7 @@ handlers =
             )
         |> Endpoint.mapHandlers
             (\handler state request ->
-                getAuthentication request
+                getAuthentication state.globalThis request
                     |> ConcurrentTask.andThen
                         (\maybeAuth ->
                             case maybeAuth of
@@ -410,8 +410,8 @@ waypointRemoveDependency { globalThis } { from, to } =
             )
 
 
-frontend request =
-    getAuthentication request
+frontend { globalThis } request =
+    getAuthentication globalThis request
         |> ConcurrentTask.andThen
             (\auth ->
                 Backend.Interop.getFileResponse
@@ -427,7 +427,7 @@ frontend request =
             )
 
 
-getAuthentication request =
+getAuthentication globalThis request =
     ConcurrentTask.map2
         (\envToken cookieToken ->
             if envToken == cookieToken then
@@ -436,7 +436,7 @@ getAuthentication request =
             else
                 Nothing
         )
-        (Backend.Interop.getEnvironment consts.env.token)
+        (Backend.Interop.getEnvironment globalThis consts.env.token)
         (Backend.Interop.getCookie consts.cookie.token request)
 
 

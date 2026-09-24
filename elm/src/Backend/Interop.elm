@@ -136,12 +136,21 @@ attemptTask onComplete pool task =
         task
 
 
-getEnvironment key =
-    defineTask
-        { function = "env:get"
-        , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
-        , args = Json.Encode.string key
-        }
+getEnvironment globalThis_ key =
+    deno globalThis_
+        |> ConcurrentTask.andThen (\deno_ -> getProperty deno_ "env" Json.Decode.value)
+        |> ConcurrentTask.andThen
+            (\env ->
+                callMethod env
+                    "get"
+                    [ Json.Encode.string key
+                    ]
+                    (Json.Decode.oneOf
+                        [ Json.Decode.map Just Json.Decode.string
+                        , Json.Decode.succeed Nothing
+                        ]
+                    )
+            )
 
 
 logError errors_ =
@@ -247,11 +256,15 @@ kvList (Kv kv) prefix decoder =
         )
 
 
-openKv (GlobalThis globalThis_) =
+deno (GlobalThis globalThis_) =
     getProperty globalThis_ "Deno" Json.Decode.value
+
+
+openKv globalThis_ =
+    deno globalThis_
         |> ConcurrentTask.andThen
-            (\deno ->
-                callMethod deno
+            (\deno_ ->
+                callMethod deno_
                     "openKv"
                     []
                     (Json.Decode.map Kv Json.Decode.value)

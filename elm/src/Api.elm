@@ -66,12 +66,14 @@ home =
     get [ Endpoint.fixed "" ]
         opaqueResponse
         |> withRequest
+        |> withState
 
 
 detail =
     get [ Endpoint.fixed "detail", Endpoint.wildcard ]
         opaqueResponse
         |> withRequest
+        |> withState
 
 
 export =

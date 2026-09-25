@@ -71,7 +71,7 @@ update msg model =
             never error
 
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
-            ( model, Backend.Interop.sendError (formatUnexpectedError error) )
+            ( model, Backend.Interop.logEmergency model.globalThis (formatUnexpectedError error) )
 
         TaskCompleted (ConcurrentTask.Success {}) ->
             ( model, Cmd.none )
@@ -100,7 +100,7 @@ update msg model =
                         (Backend.Interop.getMethod request)
                         (Backend.Interop.getUrl request)
                         |> ConcurrentTask.andThen identity
-                        |> ConcurrentTask.onError handleError
+                        |> ConcurrentTask.onError (handleError model)
                         |> ConcurrentTask.andThen (\response -> Backend.Interop.resolveRequest resolver response)
                         |> Backend.Interop.attemptTask TaskCompleted model.taskPool
             in
@@ -115,14 +115,14 @@ subscriptions model =
         ]
 
 
-handleError error =
+handleError { globalThis } error =
     case error of
         NotAuthorized { log } ->
-            Backend.Interop.logError log
+            Backend.Interop.logError globalThis log
                 |> ConcurrentTask.andThenDo Api.forbidden
 
         InternalError { log } ->
-            Backend.Interop.logError log
+            Backend.Interop.logError globalThis log
                 |> ConcurrentTask.andThenDo Api.internalServerError
 
 

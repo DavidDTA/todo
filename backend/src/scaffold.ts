@@ -35,10 +35,6 @@ function makeMatchRoute(url: string) {
   };
 }
 
-function logError(items : any[]) {
-  console.error(...items)
-}
-
 async function handle(req: Request) {
   const matchRoute = makeMatchRoute(req.url);
   const route_api_login =
@@ -66,7 +62,6 @@ ConcurrentTask.register({
   tasks: {
     "property:get": ({ object, name }: { object: any, name: any }) => object[name],
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
-    "log:error": logError,
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
     "req:getCookie": ({ request, key }: { request: Request, key: string}) => getCookies(request.headers)[key] ?? null,
@@ -79,8 +74,6 @@ ConcurrentTask.register({
     receive: app.ports.taskResponses,
   },
 });
-
-app.ports.errors.subscribe(logError);
 
 Deno.serve(async (request) => {
   return await new Promise((resolve) => {

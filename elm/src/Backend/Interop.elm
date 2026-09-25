@@ -28,11 +28,11 @@ port module Backend.Interop exposing
     , kvAtomic
     , kvGet
     , kvList
+    , logEmergency
     , logError
     , receiveRequests
     , receiveTaskProgress
     , resolveRequest
-    , sendError
     , withKv
     )
 
@@ -59,9 +59,6 @@ port taskRequests : Json.Decode.Value -> Cmd msg
 
 
 port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
-
-
-port errors : List Json.Encode.Value -> Cmd msg
 
 
 type GlobalThis
@@ -114,10 +111,6 @@ receiveRequests tag =
         (\{ request, resolver } -> tag { request = Request request, resolver = Resolver resolver })
 
 
-sendError =
-    errors
-
-
 receiveTaskProgress onProgress pool =
     ConcurrentTask.onProgress
         { send = taskRequests
@@ -153,12 +146,27 @@ getEnvironment globalThis_ key =
             )
 
 
-logError errors_ =
-    defineTask
-        { function = "log:error"
-        , expect = ConcurrentTask.expectWhatever
-        , args = Json.Encode.list identity errors_
-        }
+logError (GlobalThis globalThis_) errors =
+    getProperty globalThis_ "console" Json.Decode.value
+        |> ConcurrentTask.andThen
+            (\console ->
+                callMethod console "error" errors (Json.Decode.succeed {})
+            )
+
+
+logEmergency (GlobalThis globalThis_) errors =
+    let
+        decoder =
+            Json.Decode.map2 (\console error -> { console = console, error = error })
+                (Json.Decode.at [ "console" ] Json.Decode.value)
+                (Json.Decode.at [ "console", "error" ] Json.Decode.value)
+    in
+    case Json.Decode.decodeValue decoder globalThis_ of
+        Ok { console, error } ->
+            Ffi.applyFunctionCmd error console errors taskRequests
+
+        Err _ ->
+            Cmd.none
 
 
 atomicOpCheck (AtomicOperation op) { key, versionstamp } =

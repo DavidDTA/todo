@@ -1,4 +1,4 @@
-module Ffi exposing (applyFunction, getProperty)
+module Ffi exposing (applyFunction, applyFunctionCmd, getProperty)
 
 import ConcurrentTask
 import Json.Decode
@@ -32,3 +32,21 @@ applyFunction function thisArg argsArray decoder =
                 , ( "argsArray", Json.Encode.list identity argsArray )
                 ]
         }
+
+
+applyFunctionCmd function thisArg argsArray port_ =
+    Json.Encode.object
+        [ ( "attemptId", Json.Encode.string "<cmd>" )
+        , ( "taskId", Json.Encode.string "<cmd>" )
+        , ( "function", Json.Encode.string "function:apply" )
+        , ( "args"
+          , Json.Encode.object
+                [ ( "function", function )
+                , ( "thisArg", thisArg )
+                , ( "argsArray", Json.Encode.list identity argsArray )
+                ]
+          )
+        ]
+        |> List.singleton
+        |> Json.Encode.list identity
+        |> port_

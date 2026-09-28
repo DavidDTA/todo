@@ -437,7 +437,7 @@ getAuthentication ffiRefs request =
                 Nothing
         )
         (Backend.Interop.getEnvironment ffiRefs consts.env.token)
-        (Backend.Interop.getCookie consts.cookie.token request)
+        (Backend.Interop.getCookie ffiRefs request consts.cookie.token)
 
 
 transact kv transaction =

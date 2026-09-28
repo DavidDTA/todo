@@ -344,8 +344,12 @@ getUrl (Request request) =
     getProperty request "url" Json.Decode.string
 
 
-getHeader (Request request) name =
+getHeaders (Request request) =
     getProperty request "headers" Json.Decode.value
+
+
+getHeader request name =
+    getHeaders request
         |> ConcurrentTask.andThen
             (\headers ->
                 callMethod headers
@@ -355,14 +359,22 @@ getHeader (Request request) name =
             )
 
 
-getCookie key (Request request) =
-    defineTask
-        { function = "req:getCookie"
-        , expect = ConcurrentTask.expectJson (Json.Decode.nullable Json.Decode.string)
-        , args =
-            Json.Encode.object
-                [ ( "request", request ), ( "key", Json.Encode.string key ) ]
-        }
+getCookie (FfiRefs ffiRefs_) request key =
+    getHeaders request
+        |> ConcurrentTask.andThen
+            (\headers ->
+                callMethod ffiRefs_ "getCookies" [ headers ] Json.Decode.value
+            )
+        |> ConcurrentTask.andThen
+            (\cookies ->
+                getProperty cookies
+                    key
+                    (Json.Decode.oneOf
+                        [ Json.Decode.map Just Json.Decode.string
+                        , Json.Decode.succeed Nothing
+                        ]
+                    )
+            )
 
 
 getBody (Request request) =

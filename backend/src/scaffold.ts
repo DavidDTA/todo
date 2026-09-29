@@ -56,7 +56,7 @@ async function handle(req: Request) {
   return new Response(null, { status: 404 });
 }
 
-const app = Elm.Backend.Main.init({ flags: { globalThis } });
+const app = Elm.Backend.Main.init({ flags: { ffiRefs: { console, Deno } } });
 
 ConcurrentTask.register({
   tasks: {

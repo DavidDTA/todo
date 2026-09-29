@@ -1,6 +1,6 @@
 port module Backend.Interop exposing
     ( AtomicOperation
-    , GlobalThis
+    , FfiRefs
     , Kv
     , KvKeyPart(..)
     , Log
@@ -13,6 +13,7 @@ port module Backend.Interop exposing
     , atomicOpSet
     , attemptTask
     , encodeKvKey
+    , ffiRefs
     , getBody
     , getCookie
     , getEnvironment
@@ -23,7 +24,6 @@ port module Backend.Interop exposing
     , getRandom
     , getResponse
     , getUrl
-    , globalThis
     , iteratorToList
     , kvAtomic
     , kvGet
@@ -61,8 +61,8 @@ port taskRequests : Json.Decode.Value -> Cmd msg
 port taskResponses : (Json.Decode.Value -> msg) -> Sub msg
 
 
-type GlobalThis
-    = GlobalThis Json.Encode.Value
+type FfiRefs
+    = FfiRefs Json.Encode.Value
 
 
 type alias Log =
@@ -102,8 +102,8 @@ type Versionstamp
     = Versionstamp String
 
 
-globalThis =
-    GlobalThis
+ffiRefs =
+    FfiRefs
 
 
 receiveRequests tag =
@@ -129,8 +129,8 @@ attemptTask onComplete pool task =
         task
 
 
-getEnvironment globalThis_ key =
-    deno globalThis_
+getEnvironment ffiRefs_ key =
+    deno ffiRefs_
         |> ConcurrentTask.andThen (\deno_ -> getProperty deno_ "env" Json.Decode.value)
         |> ConcurrentTask.andThen
             (\env ->
@@ -146,22 +146,22 @@ getEnvironment globalThis_ key =
             )
 
 
-logError (GlobalThis globalThis_) errors =
-    getProperty globalThis_ "console" Json.Decode.value
+logError (FfiRefs ffiRefs_) errors =
+    getProperty ffiRefs_ "console" Json.Decode.value
         |> ConcurrentTask.andThen
             (\console ->
                 callMethod console "error" errors (Json.Decode.succeed {})
             )
 
 
-logEmergency (GlobalThis globalThis_) errors =
+logEmergency (FfiRefs ffiRefs_) errors =
     let
         decoder =
             Json.Decode.map2 (\console error -> { console = console, error = error })
                 (Json.Decode.at [ "console" ] Json.Decode.value)
                 (Json.Decode.at [ "console", "error" ] Json.Decode.value)
     in
-    case Json.Decode.decodeValue decoder globalThis_ of
+    case Json.Decode.decodeValue decoder ffiRefs_ of
         Ok { console, error } ->
             Ffi.applyFunctionCmd error console errors taskRequests
 
@@ -264,12 +264,12 @@ kvList (Kv kv) prefix decoder =
         )
 
 
-deno (GlobalThis globalThis_) =
-    getProperty globalThis_ "Deno" Json.Decode.value
+deno (FfiRefs ffiRefs_) =
+    getProperty ffiRefs_ "Deno" Json.Decode.value
 
 
-openKv globalThis_ =
-    deno globalThis_
+openKv ffiRefs_ =
+    deno ffiRefs_
         |> ConcurrentTask.andThen
             (\deno_ ->
                 callMethod deno_
@@ -279,8 +279,8 @@ openKv globalThis_ =
             )
 
 
-withKv globalThis_ task =
-    openKv globalThis_
+withKv ffiRefs_ task =
+    openKv ffiRefs_
         |> ConcurrentTask.andThen
             (\kv ->
                 task kv

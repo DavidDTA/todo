@@ -19,7 +19,7 @@ import WaypointId
 
 type alias Model =
     { taskPool : ConcurrentTask.Pool Msg
-    , globalThis : Backend.Interop.GlobalThis
+    , ffiRefs : Backend.Interop.FfiRefs
     }
 
 
@@ -52,10 +52,10 @@ main =
         }
 
 
-init : { globalThis : Json.Encode.Value } -> ( Model, Cmd Msg )
-init { globalThis } =
+init : { ffiRefs : Json.Encode.Value } -> ( Model, Cmd Msg )
+init { ffiRefs } =
     ( { taskPool = ConcurrentTask.pool
-      , globalThis = Backend.Interop.globalThis globalThis
+      , ffiRefs = Backend.Interop.ffiRefs ffiRefs
       }
     , Cmd.none
     )
@@ -71,7 +71,7 @@ update msg model =
             never error
 
         TaskCompleted (ConcurrentTask.UnexpectedError error) ->
-            ( model, Backend.Interop.logEmergency model.globalThis (formatUnexpectedError error) )
+            ( model, Backend.Interop.logEmergency model.ffiRefs (formatUnexpectedError error) )
 
         TaskCompleted (ConcurrentTask.Success {}) ->
             ( model, Cmd.none )
@@ -115,14 +115,14 @@ subscriptions model =
         ]
 
 
-handleError { globalThis } error =
+handleError { ffiRefs } error =
     case error of
         NotAuthorized { log } ->
-            Backend.Interop.logError globalThis log
+            Backend.Interop.logError ffiRefs log
                 |> ConcurrentTask.andThenDo Api.forbidden
 
         InternalError { log } ->
-            Backend.Interop.logError globalThis log
+            Backend.Interop.logError ffiRefs log
                 |> ConcurrentTask.andThenDo Api.internalServerError
 
 
@@ -159,8 +159,8 @@ handlers =
     Endpoint.handlers (\state request -> Backend.Interop.getLegacyResponse request)
         |> Endpoint.addHandler Api.waypoints getWaypoints
         |> Endpoint.addHandler Api.waypointAdd
-            (\{ globalThis } { text } ->
-                Backend.Interop.withKv globalThis
+            (\{ ffiRefs } { text } ->
+                Backend.Interop.withKv ffiRefs
                     (\kv ->
                         transact kv
                             (\op ->
@@ -188,8 +188,8 @@ handlers =
                     )
             )
         |> Endpoint.addHandler Api.waypointDelete
-            (\{ globalThis } { id } ->
-                Backend.Interop.withKv globalThis
+            (\{ ffiRefs } { id } ->
+                Backend.Interop.withKv ffiRefs
                     (\kv ->
                         transact kv
                             (\op ->
@@ -226,7 +226,7 @@ handlers =
             )
         |> Endpoint.mapHandlers
             (\handler state request ->
-                getAuthentication state.globalThis request
+                getAuthentication state.ffiRefs request
                     |> ConcurrentTask.andThen
                         (\maybeAuth ->
                             case maybeAuth of
@@ -249,8 +249,8 @@ handlers =
         |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
 
 
-getWaypoints { globalThis } =
-    Backend.Interop.withKv globalThis
+getWaypoints { ffiRefs } =
+    Backend.Interop.withKv ffiRefs
         (\kv ->
             Backend.Storage.waypointsList kv
         )
@@ -288,8 +288,8 @@ getWaypoints { globalThis } =
             )
 
 
-waypointSetCompleted { globalThis } { id, completed } =
-    Backend.Interop.withKv globalThis
+waypointSetCompleted { ffiRefs } { id, completed } =
+    Backend.Interop.withKv ffiRefs
         (\kv ->
             transact kv
                 (\op ->
@@ -309,8 +309,8 @@ waypointSetCompleted { globalThis } { id, completed } =
             )
 
 
-waypointSetPriority { globalThis } { id, priority } =
-    Backend.Interop.withKv globalThis
+waypointSetPriority { ffiRefs } { id, priority } =
+    Backend.Interop.withKv ffiRefs
         (\kv ->
             transact kv
                 (\op ->
@@ -330,8 +330,8 @@ waypointSetPriority { globalThis } { id, priority } =
             )
 
 
-waypointAddDependency { globalThis } { from, to } =
-    Backend.Interop.withKv globalThis
+waypointAddDependency { ffiRefs } { from, to } =
+    Backend.Interop.withKv ffiRefs
         (\kv ->
             transact kv
                 (\op ->
@@ -370,8 +370,8 @@ waypointAddDependency { globalThis } { from, to } =
             )
 
 
-waypointRemoveDependency { globalThis } { from, to } =
-    Backend.Interop.withKv globalThis
+waypointRemoveDependency { ffiRefs } { from, to } =
+    Backend.Interop.withKv ffiRefs
         (\kv ->
             transact kv
                 (\op ->
@@ -410,8 +410,8 @@ waypointRemoveDependency { globalThis } { from, to } =
             )
 
 
-frontend { globalThis } request =
-    getAuthentication globalThis request
+frontend { ffiRefs } request =
+    getAuthentication ffiRefs request
         |> ConcurrentTask.andThen
             (\auth ->
                 Backend.Interop.getFileResponse
@@ -427,7 +427,7 @@ frontend { globalThis } request =
             )
 
 
-getAuthentication globalThis request =
+getAuthentication ffiRefs request =
     ConcurrentTask.map2
         (\envToken cookieToken ->
             if envToken == cookieToken then
@@ -436,7 +436,7 @@ getAuthentication globalThis request =
             else
                 Nothing
         )
-        (Backend.Interop.getEnvironment globalThis consts.env.token)
+        (Backend.Interop.getEnvironment ffiRefs consts.env.token)
         (Backend.Interop.getCookie consts.cookie.token request)
 
 

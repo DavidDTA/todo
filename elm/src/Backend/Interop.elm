@@ -420,20 +420,11 @@ getResponse { status, body } =
         }
 
 
-getFileResponse { request, filename } =
-    defineTask
-        { function = "resp:file"
-        , expect = ConcurrentTask.expectJson (Json.Decode.map Response Json.Decode.value)
-        , args =
-            Json.Encode.object
-                [ ( "request"
-                  , case request of
-                        Request jsRequest ->
-                            jsRequest
-                  )
-                , ( "filename", Json.Encode.string filename )
-                ]
-        }
+getFileResponse (FfiRefs ffiRefs_) (Request request) filename =
+    callMethod ffiRefs_
+        "serveFile"
+        [ request, Json.Encode.string filename ]
+        (Json.Decode.map Response Json.Decode.value)
 
 
 getLegacyResponse (Request request) =

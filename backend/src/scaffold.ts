@@ -56,7 +56,7 @@ async function handle(req: Request) {
   return new Response(null, { status: 404 });
 }
 
-const app = Elm.Backend.Main.init({ flags: { ffiRefs: { console, Deno, getCookies } } });
+const app = Elm.Backend.Main.init({ flags: { ffiRefs: { console, Deno, getCookies, serveFile } } });
 
 ConcurrentTask.register({
   tasks: {
@@ -64,7 +64,6 @@ ConcurrentTask.register({
     "function:apply": (args: { function: any, thisArg: any, argsArray: any }) => args.function.apply(args.thisArg, args.argsArray),
     "random:get": (bytes: number) => new Promise((resolve, reject) => randomBytes(9, (err, buf) => { if (err === null) { resolve(Array.from(buf)) } else { reject() } } )),
     "req:getBody": async (request: Request) => Array.from(new Uint8Array(await request.arrayBuffer())),
-    "resp:file": ({ request, filename }: { request: Request, filename: string }) => serveFile(request, filename),
     "resp:get": ({ status, body }: { status: number, body: Array<number> }) => new Response(Uint8Array.from(body), { status }),
     "resp:legacy": handle,
   },

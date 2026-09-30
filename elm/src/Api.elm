@@ -108,6 +108,7 @@ appjs =
     get [ Endpoint.fixed "-", Endpoint.fixed "app.js" ]
         opaqueResponse
         |> withRequest
+        |> withState
 
 
 apiBase =

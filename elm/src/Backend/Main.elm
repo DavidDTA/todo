@@ -240,11 +240,11 @@ handlers =
         |> Endpoint.addHandler Api.home frontend
         |> Endpoint.addHandler Api.detail frontend
         |> Endpoint.addHandler Api.appjs
-            (\request ->
+            (\{ ffiRefs } request ->
                 Backend.Interop.getFileResponse
-                    { request = request
-                    , filename = "files/app.js"
-                    }
+                    ffiRefs
+                    request
+                    "files/app.js"
             )
         |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
 
@@ -415,15 +415,15 @@ frontend { ffiRefs } request =
         |> ConcurrentTask.andThen
             (\auth ->
                 Backend.Interop.getFileResponse
-                    { request = request
-                    , filename =
-                        case auth of
-                            Nothing ->
-                                "files/index-unauthenticated.html"
+                    ffiRefs
+                    request
+                    (case auth of
+                        Nothing ->
+                            "files/index-unauthenticated.html"
 
-                            Just UniversalAuthentication ->
-                                "files/index-authenticated.html"
-                    }
+                        Just UniversalAuthentication ->
+                            "files/index-authenticated.html"
+                    )
             )
 
 

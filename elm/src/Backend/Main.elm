@@ -239,13 +239,9 @@ handlers =
             )
         |> Endpoint.addHandler Api.home frontend
         |> Endpoint.addHandler Api.detail frontend
-        |> Endpoint.addHandler Api.appjs
-            (\{ ffiRefs } request ->
-                Backend.Interop.getFileResponse
-                    ffiRefs
-                    request
-                    "files/app.js"
-            )
+        |> Endpoint.addHandler Api.appjs (static "files/app.js")
+        |> Endpoint.addHandler Api.appwebmanifest (static "files/static/app.webmanifest")
+        |> Endpoint.addHandler Api.iconsvg (static "files/static/icon.svg")
         |> Endpoint.addHandler Api.login (\request -> Backend.Interop.getLegacyResponse request)
 
 
@@ -408,6 +404,13 @@ waypointRemoveDependency { ffiRefs } { from, to } =
                             |> List.map (Json.Encode.list identity)
                     }
             )
+
+
+static filename { ffiRefs } request =
+    Backend.Interop.getFileResponse
+        ffiRefs
+        request
+        filename
 
 
 frontend { ffiRefs } request =

@@ -36,6 +36,7 @@
       <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1,interactive-widget=resizes-content">
+      <link rel="manifest" href="/-/app.webmanifest">
       <title>Working on it!</title>
       ''${devtools}
       <script src="/-/app.js"></script>
@@ -59,6 +60,7 @@
       mkdir -p "''${outdir}"
       cp -r backend "''${outdir}/server"
       mkdir -p "''${outdir}/server/files"
+      cp -r backend/static "''${outdir}/server/files"
       mkdir -p build/generated/elm
       cat >build/generated/elm/Build.elm <<EOF
       module Build exposing (version)

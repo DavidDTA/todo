@@ -2,11 +2,13 @@ module Api exposing
     ( Waypoint
     , Waypoints
     , appjs
+    , appwebmanifest
     , badRequest
     , detail
     , export
     , forbidden
     , home
+    , iconsvg
     , internalServerError
     , login
     , teapot
@@ -106,6 +108,20 @@ export =
 
 appjs =
     get [ Endpoint.fixed "-", Endpoint.fixed "app.js" ]
+        opaqueResponse
+        |> withRequest
+        |> withState
+
+
+appwebmanifest =
+    get [ Endpoint.fixed "-", Endpoint.fixed "app.webmanifest" ]
+        opaqueResponse
+        |> withRequest
+        |> withState
+
+
+iconsvg =
+    get [ Endpoint.fixed "-", Endpoint.fixed "icon.svg" ]
         opaqueResponse
         |> withRequest
         |> withState

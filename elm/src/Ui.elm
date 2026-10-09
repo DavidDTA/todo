@@ -195,7 +195,10 @@ select items tag =
             [ Html.Styled.Events.on "input" decoder
             ]
         |> List.singleton
-        |> Html.Styled.form []
+        |> Html.Styled.form
+            [ Html.Styled.Attributes.css
+                [ Css.display Css.inlineBlock ]
+            ]
         |> List.singleton
         |> Flow
 
@@ -297,9 +300,10 @@ input params =
 button action text_ =
     Html.Styled.form
         [ Html.Styled.Events.onSubmit action
+        , Html.Styled.Attributes.css
+            [ Css.display Css.inlineBlock ]
         ]
-        [ Html.Styled.button
-            []
+        [ Html.Styled.button []
             [ Html.Styled.text text_
             ]
         ]

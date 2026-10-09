@@ -193,11 +193,16 @@ select items tag =
             )
         |> Html.Styled.select
             [ Html.Styled.Events.on "input" decoder
+            , Html.Styled.Attributes.css
+                [ Css.width blockSize
+                , Css.height blockSize
+                ]
             ]
         |> List.singleton
         |> Html.Styled.form
             [ Html.Styled.Attributes.css
-                [ Css.display Css.inlineBlock ]
+                [ Css.display Css.inlineBlock
+                ]
             ]
         |> List.singleton
         |> Flow
@@ -301,11 +306,24 @@ button action text_ =
     Html.Styled.form
         [ Html.Styled.Events.onSubmit action
         , Html.Styled.Attributes.css
-            [ Css.display Css.inlineBlock ]
+            [ Css.display Css.inlineBlock
+            , Css.height blockSize
+            , Css.width blockSize
+            ]
         ]
-        [ Html.Styled.button []
+        [ Html.Styled.button
+            [ Html.Styled.Attributes.css
+                [ Css.display Css.inlineBlock
+                , Css.height blockSize
+                , Css.width blockSize
+                ]
+            ]
             [ Html.Styled.text text_
             ]
         ]
         |> List.singleton
         |> Flow
+
+
+blockSize =
+    Css.px 32

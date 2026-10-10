@@ -75,42 +75,32 @@ type UserAction
             }
         , selection : Maybe { id : WaypointId.WaypointId, priority : Maybe String }
         }
-    | SelectAddDependency
+    | SelectSetDependency
         { call :
             { object : Json.Decode.Value
             , methodName : String
             , args : List Json.Decode.Value
             }
-        , selection : Maybe { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
-        }
-    | SelectRemoveDependency
-        { call :
-            { object : Json.Decode.Value
-            , methodName : String
-            , args : List Json.Decode.Value
-            }
-        , selection : Maybe { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
+        , selection : Maybe { from : WaypointId.WaypointId, to : WaypointId.WaypointId, dependency : Maybe Api.DependencyType }
         }
 
 
 type NetworkRequest
     = AddWaypoint { text : String }
-    | AddDependency { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
+    | SetDependency { from : WaypointId.WaypointId, to : WaypointId.WaypointId, dependency : Maybe Api.DependencyType }
     | SetWaypointCompleted { id : WaypointId.WaypointId, completed : Bool }
     | SetWaypointPriority { id : WaypointId.WaypointId, priority : Maybe String }
     | DeleteWaypoint { id : WaypointId.WaypointId }
     | InitWaypoints
-    | RemoveDependency { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
 
 
 type NetworkResponse
     = InitWaypointsResponse (List { id : WaypointId.WaypointId, waypoint : Api.Waypoint })
     | AddWaypointResponse { id : WaypointId.WaypointId, waypoint : Api.Waypoint }
-    | AddDependencyResponse { from : WaypointId.WaypointId, to : WaypointId.WaypointId } {}
+    | SetDependencyResponse { from : WaypointId.WaypointId, to : WaypointId.WaypointId, dependency : Maybe Api.DependencyType } {}
     | SetWaypointPriorityResponse { id : WaypointId.WaypointId, priority : Maybe String } {}
     | DeleteWaypointResponse WaypointId.WaypointId {}
     | SetWaypointCompletedResponse { id : WaypointId.WaypointId, completed : Bool } {}
-    | RemoveDependencyResponse { from : WaypointId.WaypointId, to : WaypointId.WaypointId } {}
 
 
 type OopsReason
@@ -271,23 +261,14 @@ update msg model =
                             ( model, Frontend.Ports.callMethod call )
                                 |> makeNetworkRequest (SetWaypointPriority selection_)
 
-                SelectAddDependency { call, selection } ->
+                SelectSetDependency { call, selection } ->
                     case selection of
                         Nothing ->
                             ( model, Frontend.Ports.callMethod call )
 
                         Just selection_ ->
                             ( model, Frontend.Ports.callMethod call )
-                                |> makeNetworkRequest (AddDependency selection_)
-
-                SelectRemoveDependency { call, selection } ->
-                    case selection of
-                        Nothing ->
-                            ( model, Frontend.Ports.callMethod call )
-
-                        Just selection_ ->
-                            ( model, Frontend.Ports.callMethod call )
-                                |> makeNetworkRequest (RemoveDependency selection_)
+                                |> makeNetworkRequest (SetDependency selection_)
 
 
 updateForNetworkResponse response model =
@@ -325,7 +306,7 @@ updateForNetworkResponse response model =
             , Cmd.none
             )
 
-        AddDependencyResponse { from, to } {} ->
+        SetDependencyResponse { from, to, dependency } {} ->
             ( { model
                 | data =
                     updateData
@@ -338,11 +319,14 @@ updateForNetworkResponse response model =
                                         (\waypoint ->
                                             { waypoint
                                                 | requires =
-                                                    if List.member to waypoint.requires then
-                                                        waypoint.requires
+                                                    waypoint.requires
+                                                        |> List.filter ((/=) to)
+                                                        |> (if dependency == Just Api.Requirement then
+                                                                (::) to
 
-                                                    else
-                                                        to :: waypoint.requires
+                                                            else
+                                                                identity
+                                                           )
                                             }
                                         )
                                     )
@@ -389,31 +373,6 @@ updateForNetworkResponse response model =
                         (\{ priorities, waypoints } ->
                             { priorities = priorities
                             , waypoints = Atlas.waypointIdKeyDict .update id (Maybe.map (\waypoint -> { waypoint | priority = priority })) waypoints
-                            }
-                        )
-                        model.data
-              }
-            , Cmd.none
-            )
-
-        RemoveDependencyResponse { from, to } {} ->
-            ( { model
-                | data =
-                    updateData
-                        (\{ priorities, waypoints } ->
-                            { priorities = priorities
-                            , waypoints =
-                                Atlas.waypointIdKeyDict .update
-                                    from
-                                    (Maybe.map
-                                        (\waypoint ->
-                                            { waypoint
-                                                | requires =
-                                                    List.filter ((/=) to) waypoint.requires
-                                            }
-                                        )
-                                    )
-                                    waypoints
                             }
                         )
                         model.data
@@ -741,7 +700,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                             |> Atlas.waypointIdKeyDict .toList
                             |> List.map
                                 (\( key, value ) ->
-                                    { msg = Just { from = waypointId, to = key }
+                                    { msg = Just { from = waypointId, to = key, dependency = Just Api.Requirement }
                                     , selected = False
                                     , text = value.text
                                     }
@@ -752,7 +711,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                                 , text = "+"
                                 }
                         )
-                        SelectAddDependency
+                        SelectSetDependency
                     )
                 |> Ui.append
                     (Ui.select
@@ -762,7 +721,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                             |> Atlas.waypointIdKeyDict .toList
                             |> List.map
                                 (\( key, value ) ->
-                                    { msg = Just { from = waypointId, to = key }
+                                    { msg = Just { from = waypointId, to = key, dependency = Nothing }
                                     , selected = False
                                     , text = value.text
                                     }
@@ -773,7 +732,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                                 , text = "-"
                                 }
                         )
-                        SelectRemoveDependency
+                        SelectSetDependency
                     )
                 |> Ui.append (Ui.heading consts.strings.dependenciesIncomingDirect)
                 |> Ui.append
@@ -784,7 +743,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                             |> Atlas.waypointIdKeyDict .toList
                             |> List.map
                                 (\( key, value ) ->
-                                    { msg = Just { from = key, to = waypointId }
+                                    { msg = Just { from = key, to = waypointId, dependency = Just Api.Requirement }
                                     , selected = False
                                     , text = value.text
                                     }
@@ -795,7 +754,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                                 , text = "+"
                                 }
                         )
-                        SelectAddDependency
+                        SelectSetDependency
                     )
                 |> Ui.append
                     (Ui.select
@@ -805,7 +764,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                             |> Atlas.waypointIdKeyDict .toList
                             |> List.map
                                 (\( key, value ) ->
-                                    { msg = Just { from = key, to = waypointId }
+                                    { msg = Just { from = key, to = waypointId, dependency = Nothing }
                                     , selected = False
                                     , text = value.text
                                     }
@@ -816,7 +775,7 @@ viewDetail ({ waypoints, priorities } as data) waypointId =
                                 , text = "-"
                                 }
                         )
-                        SelectRemoveDependency
+                        SelectSetDependency
                     )
                 |> Ui.append (Ui.heading consts.strings.dependenciesIncomingIndirect)
                 |> Ui.append
@@ -1022,8 +981,8 @@ requestToCmd token request =
         AddWaypoint r ->
             Endpoint.request Api.waypointAdd r (tagWith AddWaypointResponse)
 
-        AddDependency r ->
-            Endpoint.request Api.waypointAddDependency r (tagWith (AddDependencyResponse r))
+        SetDependency r ->
+            Endpoint.request Api.waypointSetDependency r (tagWith (SetDependencyResponse r))
 
         SetWaypointCompleted r ->
             Endpoint.request Api.waypointSetCompleted r (tagWith (SetWaypointCompletedResponse r))
@@ -1037,16 +996,13 @@ requestToCmd token request =
         InitWaypoints ->
             Endpoint.request Api.waypoints (tagWith InitWaypointsResponse)
 
-        RemoveDependency r ->
-            Endpoint.request Api.waypointRemoveDependency r (tagWith (RemoveDependencyResponse r))
-
 
 requestSafety request =
     case request of
         AddWaypoint _ ->
             NetworkQueue.Unsafe
 
-        AddDependency _ ->
+        SetDependency _ ->
             NetworkQueue.Idempotent
 
         SetWaypointCompleted _ ->
@@ -1060,9 +1016,6 @@ requestSafety request =
 
         InitWaypoints ->
             NetworkQueue.Safe
-
-        RemoveDependency _ ->
-            NetworkQueue.Idempotent
 
 
 subscriptions model =

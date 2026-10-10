@@ -1,18 +1,17 @@
 module Backend.Storage exposing
-    ( WaypointAddDependencyError(..)
-    , WaypointRemoveDependencyError(..)
-    , WaypointSetCompletedError(..)
+    ( WaypointSetCompletedError(..)
+    , WaypointSetDependencyError(..)
     , WaypointSetPriorityError(..)
     , WaypointsListError(..)
     , waypointAdd
-    , waypointAddDependency
     , waypointDelete
-    , waypointRemoveDependency
     , waypointSetCompleted
+    , waypointSetDependency
     , waypointSetPriority
     , waypointsList
     )
 
+import Api
 import Atlas
 import Backend.Interop
 import ConcurrentTask
@@ -42,14 +41,9 @@ type WaypointSetPriorityError
     | WaypointSetPriorityDecodeError Backend.Interop.Log
 
 
-type WaypointAddDependencyError
-    = WaypointAddDependencyMissingWaypoint Backend.Interop.Log
-    | WaypointAddDependencyDecodeError Backend.Interop.Log
-
-
-type WaypointRemoveDependencyError
-    = WaypointRemoveDependencyMissingWaypoint Backend.Interop.Log
-    | WaypointRemoveDependencyDecodeError Backend.Interop.Log
+type WaypointSetDependencyError
+    = WaypointSetDependencyMissingWaypoint Backend.Interop.Log
+    | WaypointSetDependencyDecodeError Backend.Interop.Log
 
 
 waypointAdd : Backend.Interop.AtomicOperation -> WaypointId.WaypointId -> { text : String } -> ConcurrentTask.ConcurrentTask x {}
@@ -99,7 +93,7 @@ waypointSetPriority kv op id priority =
             )
 
 
-waypointAddDependency kv op { from, to } =
+waypointSetDependency kv op { from, to, dependency } =
     let
         fromKey =
             keys.waypoint from
@@ -118,53 +112,23 @@ waypointAddDependency kv op { from, to } =
                             encodeWaypoint
                                 { value
                                     | dependencies =
-                                        if List.any ((==) to) value.dependencies then
-                                            value.dependencies
+                                        value.dependencies
+                                            |> List.filter ((/=) to)
+                                            |> (if dependency == Just Api.Requirement then
+                                                    (::) to
 
-                                        else
-                                            to :: value.dependencies
+                                                else
+                                                    identity
+                                               )
                                 }
                         }
                     )
         )
-        (kvGet kv fromKey decodeWaypoint WaypointAddDependencyDecodeError
-            |> ConcurrentTask.andThen (Maybe.Extra.unwrap (ConcurrentTask.fail (WaypointAddDependencyMissingWaypoint (logMissingValue fromKey))) ConcurrentTask.succeed)
+        (kvGet kv fromKey decodeWaypoint WaypointSetDependencyDecodeError
+            |> ConcurrentTask.andThen (Maybe.Extra.unwrap (ConcurrentTask.fail (WaypointSetDependencyMissingWaypoint (logMissingValue fromKey))) ConcurrentTask.succeed)
         )
-        (kvGet kv toKey (Json.Decode.succeed {}) WaypointAddDependencyDecodeError
-            |> ConcurrentTask.andThen (Maybe.Extra.unwrap (ConcurrentTask.fail (WaypointAddDependencyMissingWaypoint (logMissingValue toKey))) ConcurrentTask.succeed)
-        )
-        |> ConcurrentTask.andThen identity
-
-
-waypointRemoveDependency kv op { from, to } =
-    let
-        fromKey =
-            keys.waypoint from
-
-        toKey =
-            keys.waypoint to
-    in
-    Errors.ConcurrentTask.map2
-        (\{ versionstamp, value } toEntry ->
-            Backend.Interop.atomicOpCheck op { key = fromKey, versionstamp = Just versionstamp }
-                |> ConcurrentTask.andThenDo (Backend.Interop.atomicOpCheck op { key = toKey, versionstamp = Just toEntry.versionstamp })
-                |> ConcurrentTask.andThenDo
-                    (Backend.Interop.atomicOpSet op
-                        { key = fromKey
-                        , value =
-                            encodeWaypoint
-                                { value
-                                    | dependencies =
-                                        List.filter ((/=) to) value.dependencies
-                                }
-                        }
-                    )
-        )
-        (kvGet kv fromKey decodeWaypoint WaypointRemoveDependencyDecodeError
-            |> ConcurrentTask.andThen (Maybe.Extra.unwrap (ConcurrentTask.fail (WaypointRemoveDependencyMissingWaypoint (logMissingValue fromKey))) ConcurrentTask.succeed)
-        )
-        (kvGet kv toKey (Json.Decode.succeed {}) WaypointRemoveDependencyDecodeError
-            |> ConcurrentTask.andThen (Maybe.Extra.unwrap (ConcurrentTask.fail (WaypointRemoveDependencyMissingWaypoint (logMissingValue toKey))) ConcurrentTask.succeed)
+        (kvGet kv toKey (Json.Decode.succeed {}) WaypointSetDependencyDecodeError
+            |> ConcurrentTask.andThen (Maybe.Extra.unwrap (ConcurrentTask.fail (WaypointSetDependencyMissingWaypoint (logMissingValue toKey))) ConcurrentTask.succeed)
         )
         |> ConcurrentTask.andThen identity
 

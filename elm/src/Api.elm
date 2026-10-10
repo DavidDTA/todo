@@ -1,5 +1,6 @@
 module Api exposing
-    ( Waypoint
+    ( DependencyType(..)
+    , Waypoint
     , Waypoints
     , appjs
     , appwebmanifest
@@ -14,10 +15,9 @@ module Api exposing
     , teapot
     , unwrapWaypointId
     , waypointAdd
-    , waypointAddDependency
     , waypointDelete
-    , waypointRemoveDependency
     , waypointSetCompleted
+    , waypointSetDependency
     , waypointSetPriority
     , waypoints
     , wrapWaypointId
@@ -50,6 +50,10 @@ type alias Waypoint =
     , requires : List WaypointId.WaypointId
     , requiredBy : List WaypointId.WaypointId
     }
+
+
+type DependencyType
+    = Requirement
 
 
 type alias Waypoints =
@@ -153,10 +157,10 @@ waypointAdd =
         |> withState
 
 
-waypointAddDependency =
+waypointSetDependency =
     post
         (apiBase ++ [ Endpoint.fixed "add-dependency" ])
-        (bytesRequest w3_decode_WaypointAddDependencyRequest w3_encode_WaypointAddDependencyRequest)
+        (bytesRequest w3_decode_WaypointSetDependencyRequest w3_encode_WaypointSetDependencyRequest)
         emptyResponse
         |> withState
 
@@ -185,14 +189,6 @@ waypointSetPriority =
         |> withState
 
 
-waypointRemoveDependency =
-    post
-        (apiBase ++ [ Endpoint.fixed "remove-dependency" ])
-        (bytesRequest w3_decode_WaypointRemoveDependencyRequest w3_encode_WaypointRemoveDependencyRequest)
-        emptyResponse
-        |> withState
-
-
 type alias WaypointAddRequest =
     { text : String }
 
@@ -201,8 +197,8 @@ type alias WaypointAddResponse =
     { id : WaypointId.WaypointId, waypoint : Waypoint }
 
 
-type alias WaypointAddDependencyRequest =
-    { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
+type alias WaypointSetDependencyRequest =
+    { from : WaypointId.WaypointId, to : WaypointId.WaypointId, dependency : Maybe DependencyType }
 
 
 type alias WaypointDeleteRequest =
@@ -219,10 +215,6 @@ type alias WaypointSetPriorityRequest =
     { id : WaypointId.WaypointId
     , priority : Maybe String
     }
-
-
-type alias WaypointRemoveDependencyRequest =
-    { from : WaypointId.WaypointId, to : WaypointId.WaypointId }
 
 
 withRequest =

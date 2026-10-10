@@ -201,8 +201,7 @@ handlers =
             )
         |> Endpoint.addHandler Api.waypointSetCompleted waypointSetCompleted
         |> Endpoint.addHandler Api.waypointSetPriority waypointSetPriority
-        |> Endpoint.addHandler Api.waypointAddDependency waypointAddDependency
-        |> Endpoint.addHandler Api.waypointRemoveDependency waypointRemoveDependency
+        |> Endpoint.addHandler Api.waypointSetDependency waypointSetDependency
         |> Endpoint.mapHandlers
             (\handler state request ->
                 Backend.Interop.getHeader request "X-Build-Version"
@@ -326,12 +325,12 @@ waypointSetPriority { ffiRefs } { id, priority } =
             )
 
 
-waypointAddDependency { ffiRefs } { from, to } =
+waypointSetDependency { ffiRefs } { from, to, dependency } =
     Backend.Interop.withKv ffiRefs
         (\kv ->
             transact kv
                 (\op ->
-                    Backend.Storage.waypointAddDependency kv op { from = from, to = to }
+                    Backend.Storage.waypointSetDependency kv op { from = from, to = to, dependency = dependency }
                         |> ConcurrentTask.return {}
                 )
                 |> ConcurrentTask.map .result
@@ -342,10 +341,10 @@ waypointAddDependency { ffiRefs } { from, to } =
                     |> List.foldl
                         (\error acc ->
                             case error of
-                                Backend.Storage.WaypointAddDependencyMissingWaypoint _ ->
+                                Backend.Storage.WaypointSetDependencyMissingWaypoint _ ->
                                     NotAuthorized
 
-                                Backend.Storage.WaypointAddDependencyDecodeError _ ->
+                                Backend.Storage.WaypointSetDependencyDecodeError _ ->
                                     acc
                         )
                         InternalError
@@ -355,50 +354,10 @@ waypointAddDependency { ffiRefs } { from, to } =
                             |> List.map
                                 (\error ->
                                     case error of
-                                        Backend.Storage.WaypointAddDependencyMissingWaypoint log ->
+                                        Backend.Storage.WaypointSetDependencyMissingWaypoint log ->
                                             log
 
-                                        Backend.Storage.WaypointAddDependencyDecodeError log ->
-                                            log
-                                )
-                            |> List.map (Json.Encode.list identity)
-                    }
-            )
-
-
-waypointRemoveDependency { ffiRefs } { from, to } =
-    Backend.Interop.withKv ffiRefs
-        (\kv ->
-            transact kv
-                (\op ->
-                    Backend.Storage.waypointRemoveDependency kv op { from = from, to = to }
-                        |> ConcurrentTask.return {}
-                )
-                |> ConcurrentTask.map .result
-        )
-        |> ConcurrentTask.mapError
-            (\errors ->
-                (Errors.toList errors
-                    |> List.foldl
-                        (\error acc ->
-                            case error of
-                                Backend.Storage.WaypointRemoveDependencyMissingWaypoint _ ->
-                                    NotAuthorized
-
-                                Backend.Storage.WaypointRemoveDependencyDecodeError _ ->
-                                    acc
-                        )
-                        InternalError
-                )
-                    { log =
-                        Errors.toList errors
-                            |> List.map
-                                (\error ->
-                                    case error of
-                                        Backend.Storage.WaypointRemoveDependencyMissingWaypoint log ->
-                                            log
-
-                                        Backend.Storage.WaypointRemoveDependencyDecodeError log ->
+                                        Backend.Storage.WaypointSetDependencyDecodeError log ->
                                             log
                                 )
                             |> List.map (Json.Encode.list identity)

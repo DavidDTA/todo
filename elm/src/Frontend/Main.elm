@@ -919,8 +919,8 @@ squeeze priorities atlas =
                             updatedQueue =
                                 Atlas.waypointIdKeyDict .foldl
                                     (\incomingWaypointId {} acc ->
-                                        if Atlas.waypointIdKeyDict .isEmpty (Atlas.waypointIdKeyDict .diff (Atlas.outgoing incomingWaypointId atlas) updatedSelected) then
-                                            Heap.push incomingWaypointId acc
+                                        if Atlas.waypointIdKeyDict .isEmpty (Atlas.waypointIdKeyDict .diff (externalDirectOutgoing (Atlas.waypointGroup incomingWaypointId atlas)) updatedSelected) then
+                                            List.foldl Heap.push acc (Atlas.waypointGroup incomingWaypointId atlas |> Atlas.waypointIdKeyDict .keys)
 
                                         else
                                             acc

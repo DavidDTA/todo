@@ -9,7 +9,7 @@
     ];
     text = ''
       usage() {
-        echo "usage: backup <origin> <token>" >&2
+        echo "usage: backup <origin> <token-file>" >&2
         exit 1
       }
 
@@ -18,8 +18,11 @@
       fi
 
       origin="''${1}"
-      token="''${2}"
-      curl "''${origin}/account/export" -L --cookie "__Host-Http-a=''${token}" --fail --silent |
+      token_file="''${2}"
+      curl "''${origin}/account/export" -L --fail --silent --config <(cat <<EOF
+      cookie = "__Host-Http-a=$(cat "''${token_file}")"
+      EOF
+      ) |
         yq -y .
     '';
   }
